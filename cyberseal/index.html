@@ -14,6 +14,25 @@
 
   <header class="header">
     <div class="header-inner">
+      <div class="account-area">
+        <button id="demo-btn" class="btn-primary btn-sm" title="Guided tour of every feature">▶ Demo</button>
+        <button id="login-open-btn" class="btn-secondary btn-sm">👤 Log in</button>
+        <div id="user-menu" class="user-menu hidden">
+          <button id="user-menu-btn" class="user-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="user-dropdown">
+            <span id="user-avatar" class="avatar" aria-hidden="true"></span>
+            <span id="user-chip-name" class="user-chip-name"></span>
+            <span aria-hidden="true" class="chevron">▾</span>
+          </button>
+          <div id="user-dropdown" class="user-dropdown hidden" role="menu">
+            <div class="ud-header">
+              <strong id="ud-name"></strong>
+              <span id="ud-meta"></span>
+            </div>
+            <button id="logout-btn" class="ud-item" role="menuitem">↪️ Log out</button>
+            <button id="delete-account-btn" class="ud-item ud-danger" role="menuitem">🗑️ Delete account</button>
+          </div>
+        </div>
+      </div>
       <h1 class="brand">🛡️ CyberSeal</h1>
       <p class="subtitle">AI-Powered Threat Detection &amp; Tamper-Proof Documents</p>
       <nav class="nav-tabs" role="tablist" aria-label="Main sections">
@@ -91,14 +110,25 @@
 
       <!-- Seal panel -->
       <div id="seal-panel" role="tabpanel">
-        <div class="card">
+        <div id="seal-locked" class="card seal-locked">
+          <div class="lock-icon" aria-hidden="true">🔐</div>
+          <h2>Sign in to seal documents</h2>
+          <p class="subtitle">Sealing signs documents with a private key that belongs to your account, and your organization appears as the issuer. Anyone can <strong>verify</strong> documents without an account.</p>
+          <div class="button-row button-row-center">
+            <button id="locked-login-btn" class="btn-primary">👤 Log in</button>
+            <button id="locked-signup-btn" class="btn-secondary">✨ Create account</button>
+          </div>
+        </div>
+
+        <div id="seal-form-card" class="card hidden">
           <h2>Create a Sealed Document</h2>
-          <p class="subtitle">Your document is signed on this device with an ECDSA P-256 key. The QR code carries the signed text, so any later edit can be detected.</p>
+          <p class="subtitle">Your document is signed with your account's ECDSA P-256 key. The QR code carries the signed text, so any later edit can be detected.</p>
 
           <div class="form-grid">
             <div class="form-row">
               <label class="field-label" for="issuer-name">Issuer</label>
-              <input id="issuer-name" type="text" placeholder="Issuer / Organization Name" maxlength="120" autocomplete="organization">
+              <input id="issuer-name" type="text" placeholder="Issuer / Organization Name" maxlength="120" readonly>
+              <p class="hint">Set by your account. Verifiers see this name.</p>
             </div>
             <div class="form-row">
               <label class="field-label" for="doc-title">Title</label>
@@ -191,6 +221,110 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <!-- ============ DEMO MODE ============ -->
+  <aside id="demo-panel" class="demo-panel hidden" aria-label="Guided demo" aria-live="polite">
+    <div class="demo-top">
+      <span class="demo-badge">▶ DEMO</span>
+      <span id="demo-step-count" class="demo-step-count"></span>
+      <button id="demo-exit" class="modal-close demo-exit" aria-label="Exit demo">✕</button>
+    </div>
+    <div class="demo-progress"><div id="demo-progress-fill" class="demo-progress-fill"></div></div>
+    <h3 id="demo-title" class="demo-title"></h3>
+    <p id="demo-text" class="demo-text"></p>
+    <p id="demo-result" class="demo-result"></p>
+    <div class="demo-actions">
+      <label class="checkbox-row demo-autoplay"><input id="demo-autoplay" type="checkbox"> Auto-play</label>
+      <button id="demo-next" class="btn-primary">Start ▶</button>
+    </div>
+  </aside>
+
+  <!-- ============ AUTH DIALOG ============ -->
+  <dialog id="auth-dialog" class="modal" aria-labelledby="auth-title">
+    <div class="modal-card">
+      <button id="auth-close" class="modal-close" aria-label="Close">✕</button>
+      <h2 id="auth-title">Welcome to CyberSeal</h2>
+      <p class="subtitle">Your account lives only on this device. Nothing is sent to a server.</p>
+
+      <div class="sub-tabs auth-tabs" role="tablist">
+        <button id="auth-login-tab" class="nav-tab active" role="tab" aria-selected="true" aria-controls="login-form">Log in</button>
+        <button id="auth-signup-tab" class="nav-tab" role="tab" aria-selected="false" aria-controls="signup-form">Sign up</button>
+      </div>
+
+      <form id="login-form" class="auth-form" novalidate>
+        <div class="form-row">
+          <label class="field-label" for="login-username">Username or email</label>
+          <input id="login-username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </div>
+        <div class="form-row">
+          <label class="field-label" for="login-password">Password</label>
+          <div class="password-wrap">
+            <input id="login-password" type="password" autocomplete="current-password" required>
+            <button type="button" class="pw-toggle" data-target="login-password" aria-label="Show password">👁️</button>
+          </div>
+        </div>
+        <label class="checkbox-row"><input id="login-remember" type="checkbox"> Keep me signed in for 7 days</label>
+        <div id="login-error" class="form-error" role="alert"></div>
+        <button type="submit" class="btn-primary btn-block">Log in</button>
+        <p class="auth-switch">New here? <button type="button" class="link-btn" data-auth-mode="signup">Create an account</button></p>
+      </form>
+
+      <form id="signup-form" class="auth-form hidden" novalidate>
+        <div class="form-grid">
+          <div class="form-row">
+            <label class="field-label" for="signup-name">Full name <span class="required">*</span></label>
+            <input id="signup-name" type="text" autocomplete="name" maxlength="80" required>
+          </div>
+          <div class="form-row">
+            <label class="field-label" for="signup-org">Organization</label>
+            <input id="signup-org" type="text" autocomplete="organization" maxlength="120" placeholder="Shown as issuer on sealed documents">
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="field-label" for="signup-username">Username or email <span class="required">*</span></label>
+          <input id="signup-username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="64" required>
+        </div>
+        <div class="form-row">
+          <label class="field-label" for="signup-password">Password <span class="required">*</span></label>
+          <div class="password-wrap">
+            <input id="signup-password" type="password" autocomplete="new-password" required>
+            <button type="button" class="pw-toggle" data-target="signup-password" aria-label="Show password">👁️</button>
+          </div>
+          <div class="strength" aria-live="polite">
+            <div class="strength-bar"><div id="strength-fill" class="strength-fill"></div></div>
+            <span id="strength-label" class="strength-label">At least 8 characters, with a letter and a number</span>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="field-label" for="signup-confirm">Confirm password <span class="required">*</span></label>
+          <input id="signup-confirm" type="password" autocomplete="new-password" required>
+        </div>
+        <div id="signup-error" class="form-error" role="alert"></div>
+        <button type="submit" class="btn-primary btn-block">Create account</button>
+        <p class="auth-switch">Already have an account? <button type="button" class="link-btn" data-auth-mode="login">Log in</button></p>
+      </form>
+
+      <p class="auth-note">🔒 Passwords are hashed with PBKDF2-SHA256 (310,000 rounds) and never stored or sent anywhere. There's no password reset, so keep yours safe.</p>
+    </div>
+  </dialog>
+
+  <!-- ============ DELETE ACCOUNT DIALOG ============ -->
+  <dialog id="delete-dialog" class="modal" aria-labelledby="delete-title">
+    <form id="delete-form" class="modal-card" novalidate>
+      <button type="button" id="delete-close" class="modal-close" aria-label="Close">✕</button>
+      <h2 id="delete-title">Delete account?</h2>
+      <p class="subtitle">This permanently removes your account and its signing key from this device. Documents you already sealed still verify, but you can never seal with this key again.</p>
+      <div class="form-row">
+        <label class="field-label" for="delete-password">Enter your password to confirm</label>
+        <input id="delete-password" type="password" autocomplete="current-password" required>
+      </div>
+      <div id="delete-error" class="form-error" role="alert"></div>
+      <div class="button-row">
+        <button type="submit" class="btn-danger">🗑️ Delete permanently</button>
+        <button type="button" id="delete-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.js"></script>
@@ -199,6 +333,7 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
   <script src="js/threat-detector.js"></script>
   <script src="js/kaagaz-seal.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

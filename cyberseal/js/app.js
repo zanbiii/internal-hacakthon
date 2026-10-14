@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const detector = new ThreatDetector();
   const seal = new KaagazSeal();
+  const auth = new CyberAuth();
   let verifiedOriginalText = null;
   let isScanning = false;
   let lastSealedData = null;
@@ -296,8 +297,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const keyStatus = $('key-status');
 
   function showKeyReady() {
+    if (!seal.fingerprint) return;
+    const signer = activeSignerName();
+    const who = signer ? `Signing as <strong>${escapeHtml(signer)}</strong> · ` : '';
     keyStatus.className = 'key-status ready';
-    keyStatus.innerHTML = `✅ Signing key ready · Fingerprint <span class="fingerprint">${escapeHtml(seal.fingerprint)}</span>`
+    keyStatus.innerHTML = `✅ ${who}Key fingerprint <span class="fingerprint">${escapeHtml(seal.fingerprint)}</span>`
       + (seal.keyPersisted ? '' : ' · <span title="This browser blocked key storage, so a new key is created each visit.">session-only key</span>');
     sealBtn.disabled = false;
   }
@@ -308,12 +312,657 @@ document.addEventListener('DOMContentLoaded', () => {
     sealBtn.disabled = true;
   }
 
+  function showKeyLoading() {
+    keyStatus.className = 'key-status';
+    keyStatus.textContent = '⏳ Preparing your signing key…';
+    sealBtn.disabled = true;
+  }
+
   document.addEventListener('keysReady', showKeyReady);
-  document.addEventListener('keysError', (e) => showKeyError(e.detail && e.detail.message));
-  // In case the key was ready before the listeners were attached.
-  seal.ready.then((ok) => {
-    if (ok) showKeyReady();
-    else showKeyError(seal.initError && seal.initError.message);
+  document.addEventListener('keysError', (e) => {
+    if (auth.currentUser) showKeyError(e.detail && e.detail.message);
+  });
+
+  // ================================================================ ACCOUNTS
+
+  const authDialog = $('auth-dialog');
+  const deleteDialog = $('delete-dialog');
+  const userDropdown = $('user-dropdown');
+  const userMenuBtn = $('user-menu-btn');
+
+  function initials(name) {
+    const parts = String(name || '?').trim().split(/\s+/).filter(Boolean);
+    const letters = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || '?').slice(0, 2);
+    return letters.toUpperCase();
+  }
+
+  function openModal(dialog) {
+    if (dialog.open) return;
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+  }
+
+  function closeModal(dialog) {
+    if (!dialog.open) return;
+    if (typeof dialog.close === 'function') dialog.close();
+    else dialog.removeAttribute('open');
+  }
+
+  function clearFormErrors(form) {
+    form.querySelectorAll('.invalid').forEach((el) => el.classList.remove('invalid'));
+    form.querySelectorAll('.form-error').forEach((el) => { el.textContent = ''; });
+  }
+
+  function showFormError(form, errorEl, err, fieldMap) {
+    errorEl.textContent = err && err.message ? err.message : 'Something went wrong. Please try again.';
+    const input = err && err.field && fieldMap[err.field];
+    if (input) {
+      input.classList.add('invalid');
+      input.focus();
+    }
+  }
+
+  function setAuthMode(mode) {
+    const signup = mode === 'signup';
+    setTabState(signup ? $('auth-signup-tab') : $('auth-login-tab'), signup ? $('auth-login-tab') : $('auth-signup-tab'));
+    $('login-form').classList.toggle('hidden', signup);
+    $('signup-form').classList.toggle('hidden', !signup);
+    $('auth-title').textContent = signup ? 'Create your account' : 'Welcome back';
+    clearFormErrors($('login-form'));
+    clearFormErrors($('signup-form'));
+    setTimeout(() => (signup ? $('signup-name') : $('login-username')).focus(), 50);
+  }
+
+  function openAuth(mode) {
+    closeUserMenu();
+    openModal(authDialog);
+    setAuthMode(mode);
+  }
+
+  $('login-open-btn').addEventListener('click', () => openAuth('login'));
+  $('locked-login-btn').addEventListener('click', () => openAuth('login'));
+  $('locked-signup-btn').addEventListener('click', () => openAuth('signup'));
+  $('auth-login-tab').addEventListener('click', () => setAuthMode('login'));
+  $('auth-signup-tab').addEventListener('click', () => setAuthMode('signup'));
+  document.querySelectorAll('[data-auth-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => setAuthMode(btn.dataset.authMode));
+  });
+  $('auth-close').addEventListener('click', () => closeModal(authDialog));
+
+  // Close dialogs when the backdrop is clicked.
+  [authDialog, deleteDialog].forEach((dialog) => {
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) closeModal(dialog);
+    });
+  });
+
+  document.querySelectorAll('.pw-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = $(btn.dataset.target);
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.setAttribute('aria-pressed', String(show));
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      btn.textContent = show ? '🙈' : '👁️';
+    });
+  });
+
+  // Clear a field's error state as soon as the user edits it.
+  document.querySelectorAll('.auth-form input, #delete-form input').forEach((input) => {
+    input.addEventListener('input', () => {
+      input.classList.remove('invalid');
+      const error = input.closest('form').querySelector('.form-error');
+      if (error) error.textContent = '';
+    });
+  });
+
+  const STRENGTH_COLORS = ['var(--danger)', 'var(--danger)', 'var(--warning)', 'var(--low)', 'var(--success)'];
+  $('signup-password').addEventListener('input', () => {
+    const pw = $('signup-password').value;
+    const s = auth.passwordStrength(pw);
+    $('strength-fill').style.width = pw ? `${Math.max(1, s.score) * 25}%` : '0';
+    $('strength-fill').style.backgroundColor = STRENGTH_COLORS[s.score];
+    $('strength-label').textContent = pw ? (s.message || s.label) : 'At least 8 characters, with a letter and a number';
+  });
+
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const submit = form.querySelector('button[type="submit"]');
+    clearFormErrors(form);
+    setBusy(submit, true, '⏳ Checking…');
+    try {
+      const user = await auth.logIn($('login-username').value, $('login-password').value, $('login-remember').checked);
+      form.reset();
+      closeModal(authDialog);
+      toast(`Welcome back, ${user.name.split(' ')[0]}!`);
+    } catch (err) {
+      showFormError(form, $('login-error'), err, { username: $('login-username'), password: $('login-password') });
+      $('login-password').value = '';
+    } finally {
+      setBusy(submit, false);
+    }
+  });
+
+  $('signup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const submit = form.querySelector('button[type="submit"]');
+    clearFormErrors(form);
+    setBusy(submit, true, '⏳ Creating account…');
+    try {
+      const user = await auth.signUp({
+        name: $('signup-name').value,
+        organization: $('signup-org').value,
+        username: $('signup-username').value,
+        password: $('signup-password').value,
+        confirm: $('signup-confirm').value
+      });
+      form.reset();
+      $('signup-password').dispatchEvent(new Event('input'));
+      closeModal(authDialog);
+      toast(`Account created. Welcome, ${user.name.split(' ')[0]}!`);
+    } catch (err) {
+      showFormError(form, $('signup-error'), err, {
+        name: $('signup-name'),
+        organization: $('signup-org'),
+        username: $('signup-username'),
+        password: $('signup-password'),
+        confirm: $('signup-confirm')
+      });
+    } finally {
+      setBusy(submit, false);
+    }
+  });
+
+  // ----- user menu
+
+  function closeUserMenu() {
+    userDropdown.classList.add('hidden');
+    userMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  userMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = userDropdown.classList.contains('hidden');
+    userDropdown.classList.toggle('hidden', !open);
+    userMenuBtn.setAttribute('aria-expanded', String(open));
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!userDropdown.classList.contains('hidden') && !e.target.closest('#user-menu')) closeUserMenu();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !userDropdown.classList.contains('hidden')) {
+      closeUserMenu();
+      userMenuBtn.focus();
+    }
+  });
+
+  $('logout-btn').addEventListener('click', () => {
+    closeUserMenu();
+    auth.logOut();
+    toast('You have been logged out.');
+  });
+
+  $('delete-account-btn').addEventListener('click', () => {
+    closeUserMenu();
+    $('delete-form').reset();
+    clearFormErrors($('delete-form'));
+    openModal(deleteDialog);
+    setTimeout(() => $('delete-password').focus(), 50);
+  });
+
+  $('delete-close').addEventListener('click', () => closeModal(deleteDialog));
+  $('delete-cancel').addEventListener('click', () => closeModal(deleteDialog));
+
+  $('delete-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const submit = form.querySelector('button[type="submit"]');
+    clearFormErrors(form);
+    setBusy(submit, true, '⏳ Deleting…');
+    try {
+      const deletedId = await auth.deleteAccount($('delete-password').value);
+      await seal.deleteIdentityKey(deletedId);
+      closeModal(deleteDialog);
+      toast('Your account and signing key were deleted.');
+    } catch (err) {
+      showFormError(form, $('delete-error'), err, { password: $('delete-password') });
+    } finally {
+      setBusy(submit, false);
+    }
+  });
+
+  // ----- react to sign-in state
+
+  function resetSealOutput() {
+    lastSealedData = null;
+    $('sealed-doc').innerHTML = '';
+    $('sealed-output').classList.add('hidden');
+    $('download-btn').classList.add('hidden');
+    $('download-qr-btn').classList.add('hidden');
+  }
+
+  function applyUser(user) {
+    const signedIn = !!user;
+    $('login-open-btn').classList.toggle('hidden', signedIn);
+    $('user-menu').classList.toggle('hidden', !signedIn);
+    $('seal-locked').classList.toggle('hidden', signedIn);
+    $('seal-form-card').classList.toggle('hidden', !signedIn);
+    closeUserMenu();
+    resetSealOutput();
+
+    if (signedIn) {
+      $('user-avatar').textContent = initials(user.name);
+      $('user-chip-name').textContent = user.name;
+      $('ud-name').textContent = user.name;
+      $('ud-meta').textContent = `@${user.username}` + (user.organization ? ` · ${user.organization}` : '');
+      $('issuer-name').value = user.organization || user.name;
+      showKeyLoading();
+      seal.useIdentity(user.id).then((ok) => {
+        if (ok) showKeyReady();
+        else if (auth.currentUser && auth.currentUser.id === user.id) {
+          showKeyError(seal.initError && seal.initError.message);
+        }
+      });
+    } else {
+      $('issuer-name').value = '';
+      seal.clearIdentity();
+      keyStatus.className = 'key-status';
+      keyStatus.textContent = '';
+      sealBtn.disabled = true;
+    }
+  }
+
+  // ================================================================ DEMO MODE
+  // A guided tour that drives the real UI: nothing is faked, every step runs the actual feature.
+
+  const DEMO_IDENTITY = 'demo-issuer';
+  const DEMO_ISSUER = 'Sharma Properties';
+  const DEMO_RECEIPT = 'Received a sum of Rs 15000 from Ravi Kumar towards rent for October 2026 for Flat 4B, Green Park, New Delhi.';
+  const DEMO_PHISH = document.querySelector('.example-btn[data-type="message"]').dataset.value;
+  const demo = { active: false, step: 0, running: false, runId: 0, focusEl: null };
+  let ocrWarmup = null;
+
+  class DemoCancelled extends Error {}
+
+  function activeSignerName() {
+    if (demo.active) return `${DEMO_ISSUER} (demo)`;
+    return auth.currentUser ? auth.currentUser.name : '';
+  }
+
+  function demoCheck(runId) {
+    if (!demo.active || runId !== demo.runId) throw new DemoCancelled();
+  }
+
+  async function demoSleep(ms, runId) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    demoCheck(runId);
+  }
+
+  async function demoWaitFor(condition, runId, timeout = 30000) {
+    const start = Date.now();
+    while (!condition()) {
+      if (Date.now() - start > timeout) throw new Error('This step took too long.');
+      await demoSleep(120, runId);
+    }
+  }
+
+  async function demoType(el, text, runId) {
+    el.value = '';
+    const frames = Math.min(45, text.length);
+    const chunk = Math.ceil(text.length / frames);
+    for (let i = chunk; i < text.length; i += chunk) {
+      el.value = text.slice(0, i);
+      el.dispatchEvent(new Event('input'));
+      await demoSleep(28, runId);
+    }
+    el.value = text;
+    el.dispatchEvent(new Event('input'));
+  }
+
+  function demoFocus(el) {
+    if (demo.focusEl) demo.focusEl.classList.remove('demo-focus');
+    demo.focusEl = el || null;
+    if (el) {
+      el.classList.add('demo-focus');
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  async function demoTab(btn, runId) {
+    if (!btn.classList.contains('active')) btn.click();
+    await demoSleep(400, runId);
+  }
+
+  async function useDemoIdentity(runId) {
+    $('seal-locked').classList.add('hidden');
+    $('seal-form-card').classList.remove('hidden');
+    resetSealOutput();
+    $('issuer-name').value = DEMO_ISSUER;
+    showKeyLoading();
+    const ok = await seal.useIdentity(DEMO_IDENTITY);
+    demoCheck(runId);
+    if (!ok) throw new Error(seal.initError ? seal.initError.message : 'Could not create the demo signing key.');
+    showKeyReady();
+  }
+
+  /** Re-encodes a seal's payload with the amount changed but keeps the original signature. */
+  function demoTamperQr(qrData, from, to) {
+    const obj = JSON.parse(qrData);
+    const payload = JSON.parse(new TextDecoder().decode(pako.inflate(seal._base64ToUint8(obj.p))));
+    payload.t = payload.t.split(from).join(to);
+    payload.a = String(payload.a).split(from).join(to);
+    obj.p = seal._uint8ToBase64(pako.deflate(new TextEncoder().encode(JSON.stringify(payload))));
+    return JSON.stringify(obj);
+  }
+
+  /** Renders a "photo" of a printed copy of the receipt with forged text. */
+  async function demoForgedPrintout(issuer, title, bodyText) {
+    const W = 1400;
+    const pad = 90;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const bodyFont = '34px Georgia, "Times New Roman", serif';
+
+    ctx.font = bodyFont;
+    const lines = [];
+    let line = '';
+    bodyText.split(/\s+/).forEach((word) => {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width > W - pad * 2 && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    });
+    if (line) lines.push(line);
+
+    canvas.width = W;
+    canvas.height = pad * 2 + 250 + lines.length * 56;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#1F1A16';
+    let y = pad + 40;
+    ctx.font = 'bold 40px Georgia, "Times New Roman", serif';
+    ctx.fillText(issuer, pad, y);
+    y += 30;
+    ctx.fillRect(pad, y, W - pad * 2, 3);
+    y += 90;
+    ctx.font = 'bold 44px Georgia, "Times New Roman", serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(title.toUpperCase(), W / 2, y);
+    ctx.textAlign = 'left';
+    y += 90;
+    ctx.font = bodyFont;
+    lines.forEach((l) => {
+      ctx.fillText(l, pad, y);
+      y += 56;
+    });
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return new File([blob], 'forged-printout.png', { type: 'image/png' });
+  }
+
+  /** Downloads the OCR language model in the background so the OCR step is quick on stage. */
+  function warmUpOcr() {
+    if (ocrWarmup || typeof Tesseract === 'undefined') return;
+    ocrWarmup = Tesseract.createWorker('eng').then((w) => w.terminate()).catch(() => {});
+  }
+
+  const DEMO_STEPS = [
+    {
+      title: 'See CyberSeal in action',
+      text: 'A one-minute guided tour: catch a phishing scam, seal a rent receipt, then catch two different forgeries. Everything runs on this device, and your own account is not touched.'
+    },
+    {
+      title: 'Catch a phishing SMS',
+      text: 'A typical bank-scam message arrives. CyberSeal checks it for urgency, threats, requests for personal data and dangerous links.',
+      async run(runId) {
+        await demoTab($('tab-threat'), runId);
+        threatType.value = 'message';
+        threatType.dispatchEvent(new Event('change'));
+        demoFocus(threatInput.closest('.card'));
+        await demoType(threatInput, DEMO_PHISH, runId);
+        await demoSleep(300, runId);
+        runAnalysis();
+        await demoSleep(250, runId);
+        demoFocus($('threat-results'));
+        await demoSleep(900, runId);
+        return `Scored ${$('risk-score-text').textContent.replace('Risk score: ', '')}: ${$('risk-level').textContent}. Every red flag is listed with a reason, plus what to do next.`;
+      }
+    },
+    {
+      title: 'A real link stays clean',
+      text: 'Not everything is a scam. A genuine link to google.com should pass without a false alarm.',
+      async run(runId) {
+        threatType.value = 'url';
+        threatType.dispatchEvent(new Event('change'));
+        demoFocus(threatInput.closest('.card'));
+        await demoType(threatInput, 'https://google.com', runId);
+        await demoSleep(300, runId);
+        runAnalysis();
+        await demoSleep(250, runId);
+        demoFocus($('threat-results'));
+        await demoSleep(900, runId);
+        return `Scored ${$('risk-score-text').textContent.replace('Risk score: ', '')}: ${$('risk-level').textContent}. No false alarm.`;
+      }
+    },
+    {
+      title: 'Seal a rent receipt',
+      text: `${DEMO_ISSUER} issues a ₹15,000 rent receipt. Sealing signs the text with a private key that never leaves the device and packs the text and signature into a QR code.`,
+      async run(runId) {
+        await demoTab($('tab-seal'), runId);
+        await demoTab($('seal-mode-btn'), runId);
+        await useDemoIdentity(runId);
+        demoFocus($('seal-form-card'));
+        await demoType($('doc-title'), 'Rent Receipt', runId);
+        await demoType($('doc-text'), DEMO_RECEIPT, runId);
+        await demoType($('doc-amount'), '15000', runId);
+        await demoSleep(300, runId);
+        sealBtn.click();
+        await demoWaitFor(() => lastSealedData !== null && !$('sealed-output').classList.contains('hidden'), runId);
+        await demoSleep(200, runId);
+        demoFocus($('sealed-output'));
+        await demoSleep(900, runId);
+        return 'Sealed. The QR code carries the signed original, and the key fingerprint identifies the signer.';
+      }
+    },
+    {
+      title: 'Verify the genuine document',
+      text: 'The tenant scans the QR code on the receipt. CyberSeal checks the digital signature against the content.',
+      async run(runId) {
+        const canvas = $('sealed-qr-canvas');
+        if (!canvas || !lastSealedData) throw new Error('Run the sealing step first.');
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        demoCheck(runId);
+        await demoTab($('verify-mode-btn'), runId);
+        demoFocus($('verify-panel').querySelector('.card'));
+        setScanStatus('📷 Scanning the QR code on the document…');
+        const decoded = await seal.scanFile(new File([blob], 'receipt-qr.png', { type: 'image/png' }));
+        demoCheck(runId);
+        setScanStatus('✅ QR code read from image');
+        await handleQRResult(decoded);
+        demoCheck(runId);
+        demoFocus($('verify-results'));
+        await demoSleep(900, runId);
+        const verdict = $('verify-status').querySelector('.vs-title');
+        return `${verdict ? verdict.textContent : 'Done'}: the signature is valid and the content is exactly as sealed.`;
+      }
+    },
+    {
+      title: 'Catch a forged printout',
+      text: 'A forger prints a copy with the rent changed from 15000 to 75000 but keeps the original QR code. CyberSeal reads the paper with OCR and compares it with the signed text. The first run downloads the OCR model, so this can take a few seconds.',
+      async run(runId) {
+        if (!verifiedOriginalText || !lastSealedData) throw new Error('Run the verify step first.');
+        const p = lastSealedData.payload;
+        const forged = await demoForgedPrintout(p.i, p.d, p.t.replace('15000', '75000'));
+        demoCheck(runId);
+        ocrFile = forged;
+        $('ocr-file-label').textContent = `📄 ${forged.name}`;
+        ocrInput.closest('.file-drop').classList.add('has-file');
+        ocrBtn.disabled = false;
+        demoFocus($('ocr-section'));
+        await demoSleep(600, runId);
+        ocrBtn.click();
+        await demoWaitFor(
+          () => !ocrBtn.classList.contains('is-loading') && ($('ocr-diff-output').innerHTML.trim() || $('ocr-status').classList.contains('error')),
+          runId,
+          180000
+        );
+        if ($('ocr-status').classList.contains('error')) throw new Error($('ocr-status').textContent);
+        const changed = $('ocr-diff-output').querySelector('.diff-changed-word');
+        if (changed) {
+          changed.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          changed.focus({ preventScroll: true }); // shows the "signed: …" tooltip
+        }
+        await demoSleep(900, runId);
+        return $('ocr-diff-output').querySelector('.diff-summary.mismatch')
+          ? 'Caught: the changed amount is highlighted. Hover over it to see the value that was actually signed.'
+          : 'OCR finished. Check the comparison above.';
+      }
+    },
+    {
+      title: 'Catch a tampered QR code',
+      text: 'A smarter forger edits the amount inside the QR code itself and keeps the old signature.',
+      async run(runId) {
+        if (!lastSealedData) throw new Error('Run the sealing step first.');
+        const tampered = demoTamperQr(lastSealedData.qrData, '15000', '75000');
+        const details = $('verify-panel').querySelector('.manual-entry');
+        details.open = true;
+        demoFocus(details);
+        $('manual-qr-input').value = tampered;
+        await demoSleep(900, runId);
+        $('manual-verify-btn').click();
+        await demoSleep(500, runId);
+        demoFocus($('verify-results'));
+        await demoSleep(900, runId);
+        const verdict = $('verify-status').querySelector('.vs-title');
+        return `${verdict ? verdict.textContent : 'Done'}: the signature no longer matches the content, so the edit is exposed.`;
+      }
+    },
+    {
+      title: "That's CyberSeal",
+      text: 'A phishing scam caught, a document sealed, and both forgeries exposed, with no server and no data leaving the device. Exit the demo to try it yourself.'
+    }
+  ];
+
+  function renderDemo(state, result) {
+    const last = DEMO_STEPS.length - 1;
+    const step = DEMO_STEPS[demo.step];
+    $('demo-step-count').textContent = demo.step === 0 || demo.step === last ? 'Guided tour' : `Step ${demo.step} of ${last - 1}`;
+    $('demo-progress-fill').style.width = `${(demo.step / last) * 100}%`;
+    $('demo-title').textContent = step.title;
+    $('demo-text').textContent = step.text;
+    const resultEl = $('demo-result');
+    resultEl.textContent = result || '';
+    resultEl.classList.toggle('error', state === 'error');
+
+    const next = $('demo-next');
+    if (state === 'running') {
+      next.disabled = true;
+      next.textContent = '⏳ Running…';
+    } else {
+      next.disabled = false;
+      next.textContent = demo.step === 0 ? 'Start ▶' : demo.step === last ? 'Finish ✓' : (state === 'error' ? 'Skip ▶' : 'Next ▶');
+    }
+  }
+
+  async function runDemoStep(index) {
+    demo.step = index;
+    const runId = ++demo.runId;
+    const step = DEMO_STEPS[index];
+    if (!step.run) {
+      demoFocus(null);
+      renderDemo('done');
+      return;
+    }
+
+    demo.running = true;
+    renderDemo('running');
+    try {
+      const result = await step.run(runId);
+      demoCheck(runId);
+      demo.running = false;
+      renderDemo('done', '✓ ' + result);
+      if ($('demo-autoplay').checked && index < DEMO_STEPS.length - 1) {
+        await demoSleep(3000, runId);
+        runDemoStep(index + 1);
+      }
+    } catch (err) {
+      if (err instanceof DemoCancelled) return;
+      console.error('[Demo] step failed:', err);
+      demo.running = false;
+      renderDemo('error', `⚠️ ${err && err.message ? err.message : 'This step failed.'} You can skip ahead.`);
+    }
+  }
+
+  function startDemo() {
+    if (demo.active) return;
+    closeUserMenu();
+    closeModal(authDialog);
+    closeModal(deleteDialog);
+    stopCameraIfRunning();
+    demo.active = true;
+    demo.running = false;
+    demo.runId++;
+    document.body.classList.add('demo-running');
+    reveal($('demo-panel'));
+    runDemoStep(0);
+    $('demo-next').focus();
+    warmUpOcr();
+  }
+
+  function exitDemo() {
+    if (!demo.active) return;
+    demo.active = false;
+    demo.running = false;
+    demo.runId++;
+    demoFocus(null);
+    document.body.classList.remove('demo-running');
+    $('demo-panel').classList.add('hidden');
+
+    // Leave the app the way the user had it.
+    $('verify-results').classList.add('hidden');
+    $('ocr-section').classList.add('hidden');
+    verifiedOriginalText = null;
+    resetOcr();
+    $('manual-qr-input').value = '';
+    $('verify-panel').querySelector('.manual-entry').open = false;
+    setScanStatus('');
+    ['doc-title', 'doc-text', 'doc-amount'].forEach((id) => { $(id).value = ''; });
+    $('doc-char-count').textContent = '0';
+    applyUser(auth.currentUser);
+    $('demo-btn').focus();
+  }
+
+  $('demo-btn').addEventListener('click', startDemo);
+  $('demo-exit').addEventListener('click', exitDemo);
+  $('demo-next').addEventListener('click', () => {
+    if (demo.running) return;
+    if (demo.step >= DEMO_STEPS.length - 1) exitDemo();
+    else runDemoStep(demo.step + 1);
+  });
+  $('demo-autoplay').addEventListener('change', () => {
+    if ($('demo-autoplay').checked && demo.active && !demo.running && demo.step < DEMO_STEPS.length - 1) {
+      runDemoStep(demo.step + 1);
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && demo.active && !authDialog.open && !deleteDialog.open) exitDemo();
+  });
+
+  auth.onChange((user) => {
+    if (!demo.active) applyUser(user);
+  });
+  applyUser(null);
+  auth.restoreSession().then(() => {
+    try {
+      if (new URLSearchParams(location.search).get('demo') === '1') startDemo();
+    } catch (err) { /* ignore malformed URL */ }
   });
 
   $('doc-text').addEventListener('input', () => {
@@ -594,7 +1243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         icon: '✅',
         title: 'VERIFIED',
         desc: 'The signature is valid. The content below is exactly what was sealed.'
-          + (result.signedByThisDevice ? ' It was sealed on this device.' : '')
+          + (result.signedByThisDevice ? ' It was sealed with your account\'s key.' : '')
       };
     } else if (result.error === 'TAMPERED') {
       state = { cls: 'tampered', icon: '⚠️', title: 'TAMPERED', desc: result.message };

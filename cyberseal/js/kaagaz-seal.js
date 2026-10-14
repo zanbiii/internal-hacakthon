@@ -28,40 +28,90 @@
       this.fingerprint = null;
       this.keyPersisted = false;
       this.initError = null;
+      this.identityId = null;
       this.scanner = null;
       this.scanning = false;
       this.fileReaderElementId = 'qr-file-reader';
-      this.ready = this.init();
+      this._identityToken = 0;
+      this.ready = Promise.resolve(false);
     }
 
     /**
-     * Loads this device's signing key from IndexedDB, or creates one.
-     * The private key is generated as non-extractable, so it can sign but can never be read out.
+     * Loads the signing key for an account (or creates one on first use).
+     * Each account has its own key; the private key is non-extractable, so it can sign but never be read out.
+     * Resolves true when the key is ready.
      */
-    async init() {
+    useIdentity(identityId) {
+      const token = ++this._identityToken;
+      this.ready = this.init(identityId, token);
+      return this.ready;
+    }
+
+    /** Forgets the active key (on log-out). */
+    clearIdentity() {
+      this._identityToken++;
+      this.keyPair = null;
+      this.publicKeyJwk = null;
+      this.fingerprint = null;
+      this.identityId = null;
+      this.initError = null;
+      this.ready = Promise.resolve(false);
+      document.dispatchEvent(new CustomEvent('keysCleared'));
+    }
+
+    /** Permanently removes an account's signing key (on account deletion). */
+    async deleteIdentityKey(identityId) {
+      let db;
       try {
+        db = await this._openDb();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, 'readwrite');
+          tx.objectStore(DB_STORE).delete(this._keyId(identityId));
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } catch (err) {
+        console.warn('[KaagazSeal] could not delete key:', err);
+      } finally {
+        if (db) db.close();
+      }
+    }
+
+    async init(identityId, token) {
+      const stale = () => token !== this._identityToken;
+      try {
+        if (!identityId) throw new Error('Sign in to create a signing key.');
         if (!window.crypto || !window.crypto.subtle) {
           throw new Error('Web Crypto is unavailable. Open the app over HTTPS or on localhost.');
         }
 
-        let pair = await this._loadKeyPair();
+        let persisted = false;
+        let pair = await this._loadKeyPair(identityId);
         if (pair) {
-          this.keyPersisted = true;
+          persisted = true;
         } else {
           pair = await crypto.subtle.generateKey(ECDSA_PARAMS, false, ['sign', 'verify']);
-          this.keyPersisted = await this._saveKeyPair(pair);
+          persisted = await this._saveKeyPair(identityId, pair);
         }
 
-        this.keyPair = pair;
         const jwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
-        this.publicKeyJwk = { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y };
-        this.fingerprint = await this._fingerprint(this.publicKeyJwk);
+        const publicKeyJwk = { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y };
+        const fingerprint = await this._fingerprint(publicKeyJwk);
+        if (stale()) return false; // user switched accounts meanwhile
+
+        this.identityId = identityId;
+        this.keyPair = pair;
+        this.keyPersisted = persisted;
+        this.publicKeyJwk = publicKeyJwk;
+        this.fingerprint = fingerprint;
+        this.initError = null;
 
         document.dispatchEvent(new CustomEvent('keysReady', {
           detail: { fingerprint: this.fingerprint, persisted: this.keyPersisted }
         }));
         return true;
       } catch (err) {
+        if (stale()) return false;
         console.error('[KaagazSeal] key initialisation failed:', err);
         this.initError = err;
         document.dispatchEvent(new CustomEvent('keysError', {
@@ -622,13 +672,17 @@
       });
     }
 
-    async _loadKeyPair() {
+    _keyId(identityId) {
+      return `${KEY_ID}:${identityId}`;
+    }
+
+    async _loadKeyPair(identityId) {
       let db;
       try {
         db = await this._openDb();
         const pair = await new Promise((resolve, reject) => {
           const tx = db.transaction(DB_STORE, 'readonly');
-          const req = tx.objectStore(DB_STORE).get(KEY_ID);
+          const req = tx.objectStore(DB_STORE).get(this._keyId(identityId));
           req.onsuccess = () => resolve(req.result || null);
           req.onerror = () => reject(req.error);
         });
@@ -641,13 +695,13 @@
       }
     }
 
-    async _saveKeyPair(pair) {
+    async _saveKeyPair(identityId, pair) {
       let db;
       try {
         db = await this._openDb();
         await new Promise((resolve, reject) => {
           const tx = db.transaction(DB_STORE, 'readwrite');
-          tx.objectStore(DB_STORE).put({ privateKey: pair.privateKey, publicKey: pair.publicKey }, KEY_ID);
+          tx.objectStore(DB_STORE).put({ privateKey: pair.privateKey, publicKey: pair.publicKey }, this._keyId(identityId));
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error);
