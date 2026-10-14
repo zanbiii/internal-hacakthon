@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastSealedData = null;
   let ocrFile = null;
   let toastTimer = null;
+  let docScanToken = 0;
+  let pdfjsLoading = null;
 
   // ---------------------------------------------------------------- helpers
 
@@ -553,6 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('seal-form-card').classList.toggle('hidden', !signedIn);
     closeUserMenu();
     resetSealOutput();
+    resetDocScan();
 
     if (signedIn) {
       $('user-avatar').textContent = initials(user.name);
@@ -967,6 +970,256 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('doc-text').addEventListener('input', () => {
     $('doc-char-count').textContent = $('doc-text').value.length.toLocaleString();
+    $('doc-text').classList.remove('just-scanned');
+  });
+
+  // ----- scan an existing document into the seal form
+
+  const PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+  const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const MAX_PDF_PAGES = 5;
+
+  function resetDocScan() {
+    docScanToken++;
+    $('doc-scan-input').value = '';
+    $('doc-scan-label').textContent = '📄 Upload a photo, image or PDF to fill in the text automatically';
+    $('doc-scan-input').closest('.file-drop').classList.remove('has-file');
+    $('doc-scan-status').innerHTML = '';
+    $('doc-scan-status').className = 'ocr-status';
+    $('doc-text').classList.remove('just-scanned');
+  }
+
+  function setDocScanStatus(html, kind) {
+    const el = $('doc-scan-status');
+    el.innerHTML = html;
+    el.className = 'ocr-status' + (kind ? ' ' + kind : '');
+  }
+
+  function setDocScanProgress(label, fraction) {
+    const pct = Math.round(Math.max(0, Math.min(1, fraction || 0)) * 100);
+    setDocScanStatus(`${escapeHtml(label)} (${pct}%)<div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>`);
+  }
+
+  /** Loads pdf.js only when a PDF is actually chosen. */
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (!pdfjsLoading) {
+      pdfjsLoading = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = PDFJS_URL;
+        script.onload = () => {
+          if (!window.pdfjsLib) {
+            reject(new Error('PDF library failed to initialise.'));
+            return;
+          }
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+          resolve(window.pdfjsLib);
+        };
+        script.onerror = () => {
+          pdfjsLoading = null;
+          reject(new Error('PDF library failed to load. Check your internet connection.'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    return pdfjsLoading;
+  }
+
+  /** OCR one image/canvas. onProgress gets 0–1. */
+  async function ocrImage(image, onProgress) {
+    if (typeof Tesseract === 'undefined') {
+      throw new Error('OCR library failed to load. Check your internet connection and reload.');
+    }
+    const worker = await Tesseract.createWorker('eng', 1, {
+      logger: (m) => {
+        if (m.status === 'recognizing text' && onProgress) onProgress(m.progress);
+      }
+    });
+    try {
+      const { data } = await worker.recognize(image);
+      return { text: (data && data.text) || '', confidence: (data && data.confidence) || 0 };
+    } finally {
+      try { await worker.terminate(); } catch (e) { /* ignore */ }
+    }
+  }
+
+  /** Photos are downscaled (speed) and small images upscaled (accuracy) before OCR. */
+  async function prepareImageForOcr(file) {
+    const img = await seal._loadImage(file);
+    try {
+      const longEdge = Math.max(img.width, img.height);
+      const target = Math.max(1400, Math.min(longEdge, 2200));
+      return seal._drawScaled(img, target);
+    } finally {
+      if (typeof img.close === 'function') img.close();
+    }
+  }
+
+  async function extractPdfText(file, token) {
+    const pdfjs = await loadPdfJs();
+    const data = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjs.getDocument({ data }).promise;
+    const pageCount = Math.min(pdf.numPages, MAX_PDF_PAGES);
+    const pages = [];
+    let usedOcr = false;
+    let confidenceSum = 0;
+
+    for (let n = 1; n <= pageCount; n++) {
+      if (token !== docScanToken) return null;
+      setDocScanProgress(`Reading PDF page ${n} of ${pageCount}`, (n - 1) / pageCount);
+      const page = await pdf.getPage(n);
+      const content = await page.getTextContent();
+      let text = content.items.map((item) => item.str + (item.hasEOL ? '\n' : ' ')).join('');
+
+      // Scanned PDFs have no text layer — render the page and OCR it instead.
+      if (text.replace(/\s/g, '').length < 20) {
+        usedOcr = true;
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        const result = await ocrImage(canvas, (p) => setDocScanProgress(`Reading scanned page ${n} of ${pageCount} with OCR`, (n - 1 + p) / pageCount));
+        text = result.text;
+        confidenceSum += result.confidence;
+      }
+      pages.push(text);
+    }
+
+    return {
+      text: pages.join('\n\n'),
+      pages: pageCount,
+      totalPages: pdf.numPages,
+      usedOcr,
+      confidence: usedOcr ? confidenceSum / pageCount : null
+    };
+  }
+
+  function cleanScannedText(text) {
+    return String(text || '')
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  /** First short, wordy line looks like a title ("RENT RECEIPT"). */
+  function guessTitle(text) {
+    const line = text.split('\n').map((l) => l.trim()).find((l) => l.length >= 3);
+    if (!line || line.length > 60) return '';
+    const letters = (line.match(/[A-Za-z]/g) || []).length;
+    return letters >= line.length * 0.6 ? line : '';
+  }
+
+  /** Finds a rupee amount, preferring lines that mention total / amount / received. */
+  function guessAmount(text) {
+    const pattern = /(?:₹|\brs\.?|\binr)\s*([\d,]+(?:\.\d{1,2})?)/gi;
+    let fallback = '';
+    for (const line of text.split('\n')) {
+      pattern.lastIndex = 0;
+      const m = pattern.exec(line);
+      if (!m) continue;
+      const value = m[1].replace(/,/g, '');
+      if (!Number.isFinite(Number(value)) || Number(value) <= 0) continue;
+      if (/total|amount|received|paid|sum/i.test(line)) return value;
+      if (!fallback) fallback = value;
+    }
+    return fallback;
+  }
+
+  $('doc-scan-input').addEventListener('change', async () => {
+    const input = $('doc-scan-input');
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (!isPdf && file.type && !/^image\//.test(file.type)) {
+      setDocScanStatus('Please choose an image (JPG, PNG…) or a PDF.', 'error');
+      input.value = '';
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setDocScanStatus('That file is over 25 MB. Please use a smaller photo or PDF.', 'error');
+      input.value = '';
+      return;
+    }
+
+    const token = ++docScanToken;
+    $('doc-scan-label').textContent = `📄 ${file.name}`;
+    input.closest('.file-drop').classList.add('has-file');
+    sealBtn.disabled = true;
+
+    try {
+      let result;
+      if (isPdf) {
+        setDocScanProgress('Loading PDF reader', 0);
+        result = await extractPdfText(file, token);
+      } else {
+        setDocScanProgress('Loading OCR engine (the first run downloads the English language model)', 0);
+        const canvas = await prepareImageForOcr(file);
+        const ocr = await ocrImage(canvas, (p) => setDocScanProgress('Reading the document', p));
+        result = { text: ocr.text, usedOcr: true, confidence: ocr.confidence };
+      }
+      if (!result || token !== docScanToken) return; // a newer scan or reset took over
+
+      const text = cleanScannedText(result.text);
+      if (text.length < 5) {
+        setDocScanStatus(isPdf
+          ? 'No readable text was found in this PDF.'
+          : 'No text was found. Try a sharper, well-lit, straight-on photo.', 'error');
+        return;
+      }
+
+      const docText = $('doc-text');
+      docText.value = text;
+      docText.dispatchEvent(new Event('input'));
+      docText.classList.add('just-scanned');
+
+      const filled = [];
+      const title = guessTitle(text);
+      if (title && !$('doc-title').value.trim()) {
+        $('doc-title').value = title === title.toUpperCase()
+          ? title.charAt(0) + title.slice(1).toLowerCase()
+          : title;
+        filled.push('title');
+      }
+      const amount = guessAmount(text);
+      if (amount && !$('doc-amount').value.trim()) {
+        $('doc-amount').value = amount;
+        filled.push('amount');
+      }
+
+      const pageWord = result.pages === 1 ? 'page' : 'pages';
+      const source = isPdf
+        ? (result.usedOcr ? `scanned PDF (${result.pages} ${pageWord}, using OCR)` : `PDF (${result.pages} ${pageWord})`)
+        : 'photo (using OCR)';
+      const confidence = result.confidence !== null && result.confidence !== undefined
+        ? ` · OCR confidence ${Math.round(result.confidence)}%` : '';
+      const more = isPdf && result.totalPages > result.pages ? ` · only the first ${result.pages} of ${result.totalPages} pages were read` : '';
+      const autofill = filled.length ? ` · filled in ${filled.join(' and ')}` : '';
+      setDocScanStatus(
+        `✅ Read ${text.length.toLocaleString()} characters from the ${escapeHtml(source)}${confidence}${more}${autofill}.<br>`
+          + '<strong>Review and correct the text below before sealing.</strong> Whatever is in the box is exactly what gets signed.',
+        'success'
+      );
+      docText.focus();
+      docText.setSelectionRange(0, 0);
+      docText.scrollTop = 0;
+    } catch (err) {
+      if (token !== docScanToken) return;
+      console.error(err);
+      const message = err && err.name === 'PasswordException'
+        ? 'This PDF is password-protected. Remove the password and try again.'
+        : (err && err.message ? err.message : 'Could not read this document.');
+      setDocScanStatus(escapeHtml(message), 'error');
+    } finally {
+      if (token === docScanToken) {
+        sealBtn.disabled = !seal.fingerprint;
+        input.value = ''; // allow re-selecting the same file
+      }
+    }
   });
 
   sealBtn.addEventListener('click', async () => {

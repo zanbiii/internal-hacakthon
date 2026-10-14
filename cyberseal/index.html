@@ -137,6 +137,15 @@
           </div>
 
           <div class="form-row">
+            <span class="field-label">Scan an existing document <span class="optional">(optional)</span></span>
+            <label class="file-drop scan-drop" for="doc-scan-input">
+              <span id="doc-scan-label">📄 Upload a photo, image or PDF to fill in the text automatically</span>
+              <input id="doc-scan-input" type="file" accept="image/*,application/pdf,.pdf">
+            </label>
+            <div id="doc-scan-status" class="ocr-status" aria-live="polite"></div>
+          </div>
+
+          <div class="form-row">
             <label class="field-label" for="doc-text">Document text <span class="required">*</span></label>
             <textarea id="doc-text" rows="6" placeholder="Type or paste the full document text here..."></textarea>
             <p class="hint"><span id="doc-char-count">0</span> characters · long documents are trimmed to fit in one QR code</p>
