@@ -133,6 +133,40 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  // ------------------------------------------------------------------ theme
+
+  const THEME_KEY = 'cyberseal.theme';
+  const themeToggle = $('theme-toggle');
+  const systemDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+  function currentTheme() {
+    const chosen = document.documentElement.getAttribute('data-theme');
+    if (chosen === 'light' || chosen === 'dark') return chosen;
+    return systemDark && systemDark.matches ? 'dark' : 'light';
+  }
+
+  function syncThemeUi() {
+    const dark = currentTheme() === 'dark';
+    const label = dark ? 'Switch to light mode' : 'Switch to dark mode';
+    themeToggle.setAttribute('aria-label', label);
+    themeToggle.title = label;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#1F1B18' : '#F9F8F6');
+  }
+
+  themeToggle.addEventListener('click', () => {
+    const next = currentTheme() === 'dark' ? 'light' : 'dark';
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem(THEME_KEY, next); } catch (err) { /* storage blocked */ }
+    syncThemeUi();
+    setTimeout(() => root.classList.remove('theme-switching'), 350);
+  });
+
+  if (systemDark && systemDark.addEventListener) systemDark.addEventListener('change', syncThemeUi);
+  syncThemeUi();
+
   // ------------------------------------------------------------------- tabs
 
   function setTabState(activeBtn, inactiveBtn) {
