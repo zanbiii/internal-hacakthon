@@ -617,7 +617,10 @@
     }
 
     _normalizeForDiff(str) {
+      // NFC + dropping zero-width joiners: OCR of Indian scripts often differs from typed text only in these.
       return String(str || '')
+        .normalize('NFC')
+        .replace(/[​-‍⁠﻿]/g, '')
         .replace(/[‘’‚′]/g, "'")
         .replace(/[“”„″]/g, '"')
         .replace(/[–—]/g, '-')

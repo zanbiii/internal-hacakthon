@@ -484,6 +484,41 @@ textarea.just-scanned {
 
 .segmented-input { display: inline-flex; }
 
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-bottom: 0.45rem;
+}
+
+.label-row .field-label { margin-bottom: 0; }
+
+.inline-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+select.lang-select {
+  width: auto;
+  min-width: 12rem;
+  padding: 0.35rem 2rem 0.35rem 0.7rem;
+  font-size: 0.84rem;
+  border-radius: var(--radius-pill);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23675D53' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  cursor: pointer;
+}
+
+select.lang-select:hover { border-color: var(--accent); }
+
 /* ---------- Buttons ---------- */
 .btn-primary,
 .btn-secondary,
@@ -1016,6 +1051,11 @@ textarea.just-scanned {
   margin: 0 0 1.5rem;
   color: #1F1A16;
 }
+
+/* Fall back to fonts with Indian-script coverage (Georgia has none). */
+.sealed-document,
+.original-text,
+.diff-text { font-family: Georgia, 'Times New Roman', 'Nirmala UI', 'Noto Serif', 'Noto Sans', serif; }
 
 .sd-body {
   font-size: 1.02rem;

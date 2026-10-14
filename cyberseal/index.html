@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="CyberSeal — spot phishing scams, seal tamper-proof documents and catch forgeries, all inside your browser. No data leaves your device.">
+  <meta name="description" content="CyberSeal — spot the scams Indians actually receive (KYC, UPI, electricity, digital arrest) in English, Hinglish and 10 Indian languages, and seal tamper-proof documents in any Indian script. No data leaves your device.">
   <meta name="theme-color" content="#F9F8F6">
   <title>CyberSeal</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232A241F'/%3E%3Cpath d='M16 26s7-3.5 7-8.75V10.5L16 8l-7 2.5v6.75C9 22.5 16 26 16 26z' fill='none' stroke='%23C9B59C' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='m13 16.5 2 2 4-4' fill='none' stroke='%23F9F8F6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -99,10 +99,11 @@
   <!-- ============ HERO ============ -->
   <section class="hero">
     <div class="hero-inner">
-      <p class="eyebrow">On-device security toolkit</p>
+      <p class="eyebrow">Built for India's scam landscape</p>
       <h1 class="hero-title">Spot scams. Seal documents. <span class="hero-accent">Catch forgeries.</span></h1>
-      <p class="hero-sub">Check links and messages for phishing, issue tamper-proof documents, and verify them in seconds, all inside your browser.</p>
+      <p class="hero-sub">Check SMS, WhatsApp messages and links for the scams Indians actually receive (fake KYC, UPI tricks, electricity cut-offs, "digital arrest") in English, Hinglish and 10 Indian languages. Then seal and verify documents written in any Indian script.</p>
       <ul class="trust-badges">
+        <li><svg class="icon"><use href="#i-message"></use></svg>English, Hinglish + 10 Indian languages</li>
         <li><svg class="icon"><use href="#i-device"></use></svg>100% on-device</li>
         <li><svg class="icon"><use href="#i-key"></use></svg>ECDSA P-256 signatures</li>
         <li><svg class="icon"><use href="#i-shield-check"></use></svg>No account needed to verify</li>
@@ -119,7 +120,7 @@
           <span class="icon-chip"><svg class="icon"><use href="#i-shield-alert"></use></svg></span>
           <div>
             <h2>Analyze a link or message</h2>
-            <p class="subtitle">Paste a suspicious URL, SMS, email or chat message. CyberSeal explains every warning sign it finds.</p>
+            <p class="subtitle">Paste a suspicious link, SMS, WhatsApp message or email, in English, Hinglish, Hindi or any major Indian language. CyberSeal explains every warning sign it finds.</p>
           </div>
         </div>
 
@@ -147,10 +148,13 @@
         <div class="action-bar">
           <div class="examples-container">
             <span class="examples-label">Try an example</span>
-            <button class="example-btn" data-type="url" data-value="http://192.168.1.1/paypal-login/verify.php">Suspicious URL</button>
-            <button class="example-btn" data-type="url" data-value="https://google.com">Safe URL</button>
-            <button class="example-btn" data-type="message" data-value="URGENT: Your bank account has been compromised! Click here immediately to verify your identity: http://secure-bank-verify.tk/login. You must act within 24 hours or your account will be permanently locked. Reply with your SSN and date of birth for verification.">Phishing SMS</button>
-            <button class="example-btn" data-type="message" data-value="Hi! Your order #12345 has been shipped via FedEx. Track it at fedex.com. Thanks for shopping with us!">Safe message</button>
+            <button class="example-btn" data-type="message" data-demo="phish" data-value="प्रिय ग्राहक, आपका SBI खाता आज रात बंद कर दिया जाएगा। तुरंत KYC अपडेट करें: http://sbi-kyc-update.xyz/login और OTP बताएं।">Hindi KYC SMS</button>
+            <button class="example-btn" data-type="message" data-value="Dear Consumer, your electricity power will be disconnected tonight at 9:30 PM because your previous month bill was not updated. Please contact our electricity officer immediately on 9876543210. Thank you.">Electricity bill SMS</button>
+            <button class="example-btn" data-type="message" data-value="Congratulations! You have received a cashback of ₹5,000 from PhonePe. To receive the money, enter your UPI PIN on the request: upi://pay?pa=phonepe-refund@ybl&amp;pn=PhonePe%20Refund&amp;am=5000">UPI cashback trick</button>
+            <button class="example-btn" data-type="message" data-value="வாழ்த்துக்கள்! நீங்கள் லாட்டரி பரிசு வென்றீர்கள். உடனடியாக இந்த இணைப்பை கிளிக் செய்யவும்: http://kbc-lottery.top/claim">Tamil lottery</button>
+            <button class="example-btn" data-type="url" data-value="http://parivahan-echallan.top/pay?vehicle=DL3C">Fake e-challan link</button>
+            <button class="example-btn" data-type="url" data-value="https://www.incometax.gov.in">Real govt site</button>
+            <button class="example-btn" data-type="message" data-value="Rs 2,450 debited from A/c XX1234 on 12-Oct via UPI to SWIGGY. Not you? Call 1800 1234 567 (toll-free) or block via your bank app.">Genuine bank alert</button>
           </div>
           <div class="action-main">
             <span class="hint kbd-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
@@ -242,7 +246,13 @@
           </div>
 
           <div class="form-row">
-            <span class="field-label">Scan an existing document <span class="optional">optional</span></span>
+            <div class="label-row">
+              <span class="field-label">Scan an existing document <span class="optional">optional</span></span>
+              <label class="inline-select">
+                <span>Language</span>
+                <select id="doc-scan-lang" class="lang-select" aria-label="Language of the document to scan"></select>
+              </label>
+            </div>
             <label class="file-drop scan-drop" for="doc-scan-input">
               <span class="file-drop-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
               <span class="file-drop-text">
@@ -350,6 +360,13 @@
               </div>
             </div>
             <div class="form-row">
+              <div class="label-row">
+                <span class="field-label">Photo of the printed copy</span>
+                <label class="inline-select">
+                  <span>Language</span>
+                  <select id="ocr-lang" class="lang-select" aria-label="Language of the printed document"></select>
+                </label>
+              </div>
               <label class="file-drop" for="ocr-file-input">
                 <span class="file-drop-icon"><svg class="icon"><use href="#i-camera"></use></svg></span>
                 <span class="file-drop-text">

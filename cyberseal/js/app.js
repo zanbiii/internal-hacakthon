@@ -284,9 +284,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $('risk-headline').textContent = RISK_HEADLINES[result.levelClass] || '';
     const warnings = result.reasons.length;
     const positives = (result.positives || []).length;
-    $('risk-score-text').textContent = warnings
+    const languages = (result.languages || []).length ? ` · Language: ${result.languages.join(' + ')}` : '';
+    $('risk-score-text').textContent = (warnings
       ? `${warnings} warning sign${warnings === 1 ? '' : 's'} found${positives ? ` · ${positives} reassuring sign${positives === 1 ? '' : 's'}` : ''}`
-      : 'No warning signs found';
+      : 'No warning signs found') + languages;
     ring.setAttribute('aria-valuenow', String(result.score));
 
     // Animate the ring and the number from zero each time.
@@ -634,7 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const DEMO_IDENTITY = 'demo-issuer';
   const DEMO_ISSUER = 'Sharma Properties';
   const DEMO_RECEIPT = 'Received a sum of Rs 15000 from Ravi Kumar towards rent for October 2026 for Flat 4B, Green Park, New Delhi.';
-  const DEMO_PHISH = document.querySelector('.example-btn[data-type="message"]').dataset.value;
+  const DEMO_PHISH = document.querySelector('.example-btn[data-demo="phish"]').dataset.value;
   const demo = { active: false, step: 0, running: false, runId: 0, focusEl: null };
   let ocrWarmup = null;
 
@@ -771,8 +772,8 @@ document.addEventListener('DOMContentLoaded', () => {
       text: 'A one-minute guided tour: catch a phishing scam, seal a rent receipt, then catch two different forgeries. Everything runs on this device, and your own account is not touched.'
     },
     {
-      title: 'Catch a phishing SMS',
-      text: 'A typical bank-scam message arrives. CyberSeal checks it for urgency, threats, requests for personal data and dangerous links.',
+      title: 'Catch a Hindi KYC scam',
+      text: 'A fake "SBI KYC update" SMS arrives in Hindi, one of the most common scams in India. CyberSeal reads English, Hinglish and 10 Indian languages and checks for India-specific scam patterns.',
       async run(runId) {
         await demoTab($('tab-threat'), runId);
         threatType.value = 'message';
@@ -788,13 +789,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     {
-      title: 'A real link stays clean',
-      text: 'Not everything is a scam. A genuine link to google.com should pass without a false alarm.',
+      title: 'A real government link stays clean',
+      text: 'Not everything is a scam. Genuine Indian government sites always end in .gov.in, so the real Income Tax portal should pass without a false alarm.',
       async run(runId) {
         threatType.value = 'url';
         threatType.dispatchEvent(new Event('change'));
         demoFocus(threatInput.closest('.card'));
-        await demoType(threatInput, 'https://google.com', runId);
+        await demoType(threatInput, 'https://www.incometax.gov.in', runId);
         await demoSleep(300, runId);
         runAnalysis();
         await demoSleep(250, runId);
@@ -1078,12 +1079,61 @@ document.addEventListener('DOMContentLoaded', () => {
     return pdfjsLoading;
   }
 
+  // ----- OCR languages (Tesseract language codes)
+
+  const OCR_LANGUAGES = [
+    ['eng+hin', 'English + Hindi'], ['eng', 'English'], ['hin', 'Hindi'], ['mar', 'Marathi'],
+    ['ben', 'Bengali'], ['tam', 'Tamil'], ['tel', 'Telugu'], ['kan', 'Kannada'], ['mal', 'Malayalam'],
+    ['guj', 'Gujarati'], ['pan', 'Punjabi'], ['ori', 'Odia'], ['urd', 'Urdu'], ['asm', 'Assamese'],
+    ['nep', 'Nepali'], ['san', 'Sanskrit']
+  ];
+  const OCR_LANG_NAMES = Object.fromEntries(OCR_LANGUAGES.filter(([code]) => !code.includes('+')));
+  const SCRIPT_TO_OCR = [
+    [/[ऀ-ॣ०-ॿ]/, 'hin'], [/[ঀ-৿]/, 'ben'], [/[਀-੿]/, 'pan'],
+    [/[઀-૿]/, 'guj'], [/[଀-୿]/, 'ori'], [/[஀-௿]/, 'tam'],
+    [/[ఀ-౿]/, 'tel'], [/[ಀ-೿]/, 'kan'], [/[ഀ-ൿ]/, 'mal'], [/[؀-ۿ]/, 'urd']
+  ];
+  const DOC_LANG_KEY = 'cyberseal.docScanLang';
+
+  function populateLangSelect(select, withAuto) {
+    select.innerHTML = (withAuto ? '<option value="auto">Auto (match the signed text)</option>' : '')
+      + OCR_LANGUAGES.map(([code, name]) => `<option value="${code}">${escapeHtml(name)}</option>`).join('');
+  }
+
+  /** Documents usually mix English with the local language, so English is always included. */
+  function langsFromValue(value) {
+    const langs = String(value || 'eng').split('+').filter(Boolean);
+    if (!langs.includes('eng')) langs.unshift('eng');
+    return langs;
+  }
+
+  /** Picks OCR languages from the scripts that appear in a known text. */
+  function langsForText(text) {
+    const langs = ['eng'];
+    SCRIPT_TO_OCR.forEach(([re, code]) => { if (re.test(text || '')) langs.push(code); });
+    return langs;
+  }
+
+  function langLabel(langs) {
+    return langs.map((code) => OCR_LANG_NAMES[code] || code).join(' + ');
+  }
+
+  populateLangSelect($('doc-scan-lang'), false);
+  populateLangSelect($('ocr-lang'), true);
+  try {
+    const saved = localStorage.getItem(DOC_LANG_KEY);
+    if (saved && OCR_LANGUAGES.some(([code]) => code === saved)) $('doc-scan-lang').value = saved;
+  } catch (err) { /* storage unavailable */ }
+  $('doc-scan-lang').addEventListener('change', () => {
+    try { localStorage.setItem(DOC_LANG_KEY, $('doc-scan-lang').value); } catch (err) { /* ignore */ }
+  });
+
   /** OCR one image/canvas. onProgress gets 0–1. */
-  async function ocrImage(image, onProgress) {
+  async function ocrImage(image, onProgress, langs = ['eng']) {
     if (typeof Tesseract === 'undefined') {
       throw new Error('OCR library failed to load. Check your internet connection and reload.');
     }
-    const worker = await Tesseract.createWorker('eng', 1, {
+    const worker = await Tesseract.createWorker(langs, 1, {
       logger: (m) => {
         if (m.status === 'recognizing text' && onProgress) onProgress(m.progress);
       }
@@ -1108,7 +1158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function extractPdfText(file, token) {
+  async function extractPdfText(file, token, langs) {
     const pdfjs = await loadPdfJs();
     const data = new Uint8Array(await file.arrayBuffer());
     const pdf = await pdfjs.getDocument({ data }).promise;
@@ -1132,7 +1182,11 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = Math.floor(viewport.width);
         canvas.height = Math.floor(viewport.height);
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-        const result = await ocrImage(canvas, (p) => setDocScanProgress(`Reading scanned page ${n} of ${pageCount} with OCR`, (n - 1 + p) / pageCount));
+        const result = await ocrImage(
+          canvas,
+          (p) => setDocScanProgress(`Reading scanned page ${n} of ${pageCount} (${langLabel(langs)})`, (n - 1 + p) / pageCount),
+          langs
+        );
         text = result.text;
         confidenceSum += result.confidence;
       }
@@ -1150,6 +1204,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function cleanScannedText(text) {
     return String(text || '')
+      // OCR of Indian scripts inserts invisible joiners (e.g. after a Tamil pulli) that the original never had.
+      .normalize('NFC')
+      .replace(/[​-‍⁠﻿]/g, '')
       .replace(/\r\n?/g, '\n')
       .split('\n')
       .map((line) => line.replace(/[ \t]+/g, ' ').trim())
@@ -1162,21 +1219,23 @@ document.addEventListener('DOMContentLoaded', () => {
   function guessTitle(text) {
     const line = text.split('\n').map((l) => l.trim()).find((l) => l.length >= 3);
     if (!line || line.length > 60) return '';
-    const letters = (line.match(/[A-Za-z]/g) || []).length;
-    return letters >= line.length * 0.6 ? line : '';
+    // Letters in any script (combining vowel signs count too, for Indian scripts).
+    const letters = (line.match(/[\p{L}\p{M}]/gu) || []).length;
+    return letters >= line.replace(/\s/g, '').length * 0.6 ? line : '';
   }
 
-  /** Finds a rupee amount, preferring lines that mention total / amount / received. */
+  /** Finds a rupee amount, preferring lines that mention total / amount / received (in English or Hindi). */
   function guessAmount(text) {
-    const pattern = /(?:₹|\brs\.?|\binr)\s*([\d,]+(?:\.\d{1,2})?)/gi;
+    // Currency before the number ("₹15,000", "Rs 500") or after it ("15000 रुपये", "500 rupees", "500/-")
+    const before = /(?:₹|\brs\.?|\binr|रु\.?|रुपये|रुपए)\s*([\d,]+(?:\.\d{1,2})?)/iu;
+    const after = /([\d,]*\d(?:\.\d{1,2})?)\s*(?:रुपये|रुपए|रु\.?|rupees|\/-)/iu;
     let fallback = '';
-    for (const line of text.split('\n')) {
-      pattern.lastIndex = 0;
-      const m = pattern.exec(line);
+    for (const line of detector._toAsciiDigits(text).split('\n')) {
+      const m = line.match(before) || line.match(after);
       if (!m) continue;
       const value = m[1].replace(/,/g, '');
       if (!Number.isFinite(Number(value)) || Number(value) <= 0) continue;
-      if (/total|amount|received|paid|sum/i.test(line)) return value;
+      if (/total|amount|received|paid|sum|कुल|राशि|प्राप्त/iu.test(line)) return value;
       if (!fallback) fallback = value;
     }
     return fallback;
@@ -1204,15 +1263,17 @@ document.addEventListener('DOMContentLoaded', () => {
     input.closest('.file-drop').classList.add('has-file');
     sealBtn.disabled = true;
 
+    const langs = langsFromValue($('doc-scan-lang').value);
+
     try {
       let result;
       if (isPdf) {
         setDocScanProgress('Loading PDF reader', 0);
-        result = await extractPdfText(file, token);
+        result = await extractPdfText(file, token, langs);
       } else {
-        setDocScanProgress('Loading OCR engine (the first run downloads the English language model)', 0);
+        setDocScanProgress(`Loading OCR for ${langLabel(langs)} (each language downloads once, 1–3 MB)`, 0);
         const canvas = await prepareImageForOcr(file);
-        const ocr = await ocrImage(canvas, (p) => setDocScanProgress('Reading the document', p));
+        const ocr = await ocrImage(canvas, (p) => setDocScanProgress(`Reading the document (${langLabel(langs)})`, p), langs);
         result = { text: ocr.text, usedOcr: true, confidence: ocr.confidence };
       }
       if (!result || token !== docScanToken) return; // a newer scan or reset took over
@@ -1246,8 +1307,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const pageWord = result.pages === 1 ? 'page' : 'pages';
       const source = isPdf
-        ? (result.usedOcr ? `scanned PDF (${result.pages} ${pageWord}, using OCR)` : `PDF (${result.pages} ${pageWord})`)
-        : 'photo (using OCR)';
+        ? (result.usedOcr ? `scanned PDF (${result.pages} ${pageWord}, OCR in ${langLabel(langs)})` : `PDF (${result.pages} ${pageWord})`)
+        : `photo (OCR in ${langLabel(langs)})`;
       const confidence = result.confidence !== null && result.confidence !== undefined
         ? ` · OCR confidence ${Math.round(result.confidence)}%` : '';
       const more = isPdf && result.totalPages > result.pages ? ` · only the first ${result.pages} of ${result.totalPages} pages were read` : '';
@@ -1658,13 +1719,17 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // "Auto" reads the scripts used in the signed text, e.g. Tamil + English.
+    const langChoice = $('ocr-lang').value;
+    const langs = langChoice === 'auto' ? langsForText(verifiedOriginalText) : langsFromValue(langChoice);
+
     setBusy(ocrBtn, true, 'Reading document…');
     $('ocr-diff-output').innerHTML = '';
-    setOcrProgress('Loading OCR engine (the first run downloads the English language model)', 0);
+    setOcrProgress(`Loading OCR for ${langLabel(langs)} (each language downloads once, 1–3 MB)`, 0);
 
     let worker = null;
     try {
-      worker = await Tesseract.createWorker('eng', 1, {
+      worker = await Tesseract.createWorker(langs, 1, {
         logger: (m) => {
           if (m.status === 'recognizing text') setOcrProgress('Recognizing text', m.progress);
           else if (m.status && typeof m.progress === 'number') setOcrProgress(m.status.charAt(0).toUpperCase() + m.status.slice(1), m.progress);
@@ -1681,7 +1746,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const body = seal.extractBodyFromOcr(ocrText, verifiedOriginalText);
       const diff = seal.compareTexts(verifiedOriginalText, body);
-      $('ocr-status').textContent = `OCR complete · confidence ${Math.round(data.confidence || 0)}%`;
+      $('ocr-status').textContent = `OCR complete (${langLabel(langs)}) · confidence ${Math.round(data.confidence || 0)}%`;
 
       const summary = diff.changed
         ? `<div class="diff-summary mismatch">${icon('x-circle')}<span>${diff.changeCount} difference${diff.changeCount === 1 ? '' : 's'} between the printed text and the signed original. Hover or tap highlighted words to see what was signed.</span></div>`
