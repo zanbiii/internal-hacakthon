@@ -1,0 +1,9 @@
+{
+  "name": "cyberseal",
+  "version": "1.0.0",
+  "description": "AI Threat Detection & Tamper-Proof Document Verification",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve . -l 3000"
+  }
+}

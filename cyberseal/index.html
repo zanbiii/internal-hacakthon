@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CyberSeal — client-side phishing detection and tamper-proof document sealing. No data leaves your device.">
+  <meta name="theme-color" content="#F9F8F6">
+  <title>CyberSeal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="lib-warning" class="lib-warning hidden" role="alert"></div>
+
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="brand">🛡️ CyberSeal</h1>
+      <p class="subtitle">AI-Powered Threat Detection &amp; Tamper-Proof Documents</p>
+      <nav class="nav-tabs" role="tablist" aria-label="Main sections">
+        <button id="tab-threat" class="nav-tab active" role="tab" aria-selected="true" aria-controls="threat-section">🔍 Threat Detector</button>
+        <button id="tab-seal" class="nav-tab" role="tab" aria-selected="false" aria-controls="seal-section">🔏 KaagazSeal</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+
+    <!-- ============ THREAT DETECTOR ============ -->
+    <section id="threat-section" role="tabpanel" aria-labelledby="tab-threat">
+      <div class="card">
+        <h2>Analyze URLs &amp; Messages</h2>
+        <p class="subtitle">Paste a URL or message below to detect phishing, fraud, and suspicious activity</p>
+
+        <div class="form-row">
+          <label class="field-label" for="threat-type">Input type</label>
+          <select id="threat-type">
+            <option value="url">🔗 URL</option>
+            <option value="message">💬 Message</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="field-label" for="threat-input">Content to analyze</label>
+          <textarea id="threat-input" rows="4" placeholder="Paste a URL or message to analyze..." spellcheck="false"></textarea>
+          <p class="hint kbd-hint">Tip: press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to analyze</p>
+        </div>
+
+        <button id="analyze-btn" class="btn-primary btn-block">🔍 Analyze Threat</button>
+
+        <div class="examples-container">
+          <span class="examples-label">Try examples:</span>
+          <button class="example-btn" data-type="url" data-value="http://192.168.1.1/paypal-login/verify.php">Suspicious URL</button>
+          <button class="example-btn" data-type="url" data-value="https://google.com">Safe URL</button>
+          <button class="example-btn" data-type="message" data-value="URGENT: Your bank account has been compromised! Click here immediately to verify your identity: http://secure-bank-verify.tk/login. You must act within 24 hours or your account will be permanently locked. Reply with your SSN and date of birth for verification.">Phishing Message</button>
+          <button class="example-btn" data-type="message" data-value="Hi! Your order #12345 has been shipped via FedEx. Track it at fedex.com. Thanks for shopping with us!">Safe Message</button>
+        </div>
+      </div>
+
+      <div id="threat-results" class="hidden" aria-live="polite">
+        <div class="card">
+          <div id="risk-meter">
+            <div class="risk-meter-top">
+              <div id="risk-level"></div>
+              <div id="risk-score-text"></div>
+            </div>
+            <div id="risk-score-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="risk-score-fill"></div>
+            </div>
+            <div class="risk-scale" aria-hidden="true">
+              <span>Safe</span><span>Low</span><span>Medium</span><span>High</span><span>Critical</span>
+            </div>
+          </div>
+          <div id="risk-reasons" class="results-section">
+            <h3>⚠️ Threat Indicators</h3>
+            <ul id="reasons-list" class="result-list"></ul>
+          </div>
+          <div id="risk-recommendations" class="results-section">
+            <h3>🛡️ Safety Recommendations</h3>
+            <ul id="recommendations-list" class="result-list"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ KAAGAZSEAL ============ -->
+    <section id="seal-section" class="hidden" role="tabpanel" aria-labelledby="tab-seal">
+      <div class="sub-tabs" role="tablist" aria-label="KaagazSeal mode">
+        <button id="seal-mode-btn" class="nav-tab active" role="tab" aria-selected="true" aria-controls="seal-panel">🔏 Seal Document</button>
+        <button id="verify-mode-btn" class="nav-tab" role="tab" aria-selected="false" aria-controls="verify-panel">✅ Verify Document</button>
+      </div>
+
+      <!-- Seal panel -->
+      <div id="seal-panel" role="tabpanel">
+        <div class="card">
+          <h2>Create a Sealed Document</h2>
+          <p class="subtitle">Your document is signed on this device with an ECDSA P-256 key. The QR code carries the signed text, so any later edit can be detected.</p>
+
+          <div class="form-grid">
+            <div class="form-row">
+              <label class="field-label" for="issuer-name">Issuer</label>
+              <input id="issuer-name" type="text" placeholder="Issuer / Organization Name" maxlength="120" autocomplete="organization">
+            </div>
+            <div class="form-row">
+              <label class="field-label" for="doc-title">Title</label>
+              <input id="doc-title" type="text" placeholder="Document Title (e.g., Rent Receipt)" maxlength="120">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="field-label" for="doc-text">Document text <span class="required">*</span></label>
+            <textarea id="doc-text" rows="6" placeholder="Type or paste the full document text here..."></textarea>
+            <p class="hint"><span id="doc-char-count">0</span> characters · long documents are trimmed to fit in one QR code</p>
+          </div>
+
+          <div class="form-row">
+            <label class="field-label" for="doc-amount">Amount (₹)</label>
+            <input id="doc-amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Amount (₹) — optional">
+          </div>
+
+          <button id="seal-btn" class="btn-primary btn-block" disabled>🔏 Generate Sealed Document</button>
+          <div id="key-status" class="key-status" aria-live="polite">⏳ Preparing signing key…</div>
+        </div>
+
+        <div id="sealed-output" class="hidden">
+          <div class="card">
+            <div id="seal-warning" class="notice notice-warning hidden"></div>
+            <div id="sealed-doc"></div>
+            <div class="button-row">
+              <button id="print-btn" class="btn-secondary">🖨️ Print</button>
+              <button id="download-qr-btn" class="btn-secondary hidden">🖼️ Download QR Image</button>
+              <button id="download-btn" class="btn-secondary hidden">💾 Download Seal (.json)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verify panel -->
+      <div id="verify-panel" class="hidden" role="tabpanel">
+        <div class="card">
+          <h2>Verify a Sealed Document</h2>
+          <p class="subtitle">Scan the QR code on a sealed document to check that its signature is valid and see the original signed text.</p>
+
+          <div id="qr-reader"></div>
+          <div id="qr-file-reader" class="visually-hidden" aria-hidden="true"></div>
+
+          <div class="button-row button-row-center">
+            <button id="scan-btn" class="btn-primary">📷 Start Camera Scan</button>
+            <label for="file-input" class="btn-secondary" tabindex="0" role="button">📁 Upload QR Image</label>
+            <input id="file-input" type="file" accept="image/*" hidden>
+          </div>
+          <div id="scan-status" class="scan-status" aria-live="polite"></div>
+
+          <details class="manual-entry">
+            <summary>Or paste QR data manually</summary>
+            <textarea id="manual-qr-input" rows="3" placeholder='Paste the QR contents or the downloaded .json seal, e.g. {"p":"…","s":"…","k":{…}}' spellcheck="false"></textarea>
+            <button id="manual-verify-btn" class="btn-secondary">✅ Verify Pasted Data</button>
+          </details>
+        </div>
+
+        <div id="verify-results" class="hidden" aria-live="polite">
+          <div class="card">
+            <div id="verify-status"></div>
+            <div id="verify-details"></div>
+            <div id="diff-output"></div>
+          </div>
+        </div>
+
+        <div id="ocr-section" class="hidden">
+          <div class="card">
+            <h3>📝 OCR Comparison</h3>
+            <p class="subtitle">Upload a photo of the printed document to check if printed text matches the signed original</p>
+            <div class="form-row">
+              <label class="file-drop" for="ocr-file-input">
+                <span id="ocr-file-label">📄 Choose a photo of the printed document</span>
+                <input id="ocr-file-input" type="file" accept="image/*">
+              </label>
+            </div>
+            <button id="ocr-btn" class="btn-primary btn-block" disabled>🔍 Run OCR Comparison</button>
+            <div id="ocr-status" class="ocr-status" aria-live="polite"></div>
+            <div id="ocr-diff-output"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Built with ❤️ | No data leaves your device | 100% client-side</p>
+    <p class="tech-badges">tesseract.js • Web Crypto • pako • jsdiff • Vercel</p>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script src="js/threat-detector.js"></script>
+  <script src="js/kaagaz-seal.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
