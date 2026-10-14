@@ -3,99 +3,190 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="CyberSeal — client-side phishing detection and tamper-proof document sealing. No data leaves your device.">
+  <meta name="description" content="CyberSeal — spot phishing scams, seal tamper-proof documents and catch forgeries, all inside your browser. No data leaves your device.">
   <meta name="theme-color" content="#F9F8F6">
   <title>CyberSeal</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232A241F'/%3E%3Cpath d='M16 26s7-3.5 7-8.75V10.5L16 8l-7 2.5v6.75C9 22.5 16 26 16 26z' fill='none' stroke='%23C9B59C' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='m13 16.5 2 2 4-4' fill='none' stroke='%23F9F8F6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- Icon sprite: <svg class="icon"><use href="#i-name"></use></svg> -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+    <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4.2-4.2"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h2"/></symbol>
+    <symbol id="i-file-check" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></symbol>
+    <symbol id="i-file-search" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4"/><path d="M14 2v6h6"/><circle cx="16" cy="16" r="3"/><path d="m21 21-2.8-2.8"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol>
+    <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-user-plus" viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M2 21a8 8 0 0 1 13.3-6"/><path d="M19 16v6"/><path d="M16 19h6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M9.9 9.9a3 3 0 1 0 4.2 4.2"/><path d="M10.7 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7"/><path d="M6.6 6.6A13.5 13.5 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="m2 2 20 20"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-x-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h3v3H7z"/><path d="M14 8h3v3h-3z"/><path d="M7 14h3v3H7z"/><path d="M14 14h3v3h-3z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-device" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2.5"/><path d="M11 18h2"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m5.6 18.4 2.8-2.8"/><path d="m15.6 8.4 2.8-2.8"/></symbol>
+  </svg>
+
   <div id="lib-warning" class="lib-warning hidden" role="alert"></div>
 
-  <header class="header">
-    <div class="header-inner">
+  <!-- ============ APP BAR ============ -->
+  <header class="appbar">
+    <div class="appbar-inner">
+      <a class="logo" href="./" aria-label="CyberSeal home">
+        <span class="logo-mark"><svg class="icon"><use href="#i-shield-check"></use></svg></span>
+        <span class="logo-text">CyberSeal</span>
+      </a>
+
+      <nav class="nav-tabs segmented" role="tablist" aria-label="Main sections">
+        <button id="tab-threat" class="nav-tab active" role="tab" aria-selected="true" aria-controls="threat-section">
+          <svg class="icon"><use href="#i-search"></use></svg><span>Threat Detector</span>
+        </button>
+        <button id="tab-seal" class="nav-tab" role="tab" aria-selected="false" aria-controls="seal-section">
+          <svg class="icon"><use href="#i-lock"></use></svg><span>KaagazSeal</span>
+        </button>
+      </nav>
+
       <div class="account-area">
-        <button id="demo-btn" class="btn-primary btn-sm" title="Guided tour of every feature">▶ Demo</button>
-        <button id="login-open-btn" class="btn-secondary btn-sm">👤 Log in</button>
+        <button id="demo-btn" class="btn-ghost btn-sm" title="Guided tour of every feature" aria-label="Start the guided demo">
+          <svg class="icon"><use href="#i-play"></use></svg><span>Demo</span>
+        </button>
+        <button id="login-open-btn" class="btn-primary btn-sm">
+          <svg class="icon"><use href="#i-user"></use></svg><span>Log in</span>
+        </button>
         <div id="user-menu" class="user-menu hidden">
           <button id="user-menu-btn" class="user-chip" aria-haspopup="menu" aria-expanded="false" aria-controls="user-dropdown">
             <span id="user-avatar" class="avatar" aria-hidden="true"></span>
             <span id="user-chip-name" class="user-chip-name"></span>
-            <span aria-hidden="true" class="chevron">▾</span>
+            <svg class="icon chevron" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
           </button>
           <div id="user-dropdown" class="user-dropdown hidden" role="menu">
             <div class="ud-header">
               <strong id="ud-name"></strong>
               <span id="ud-meta"></span>
             </div>
-            <button id="logout-btn" class="ud-item" role="menuitem">↪️ Log out</button>
-            <button id="delete-account-btn" class="ud-item ud-danger" role="menuitem">🗑️ Delete account</button>
+            <button id="logout-btn" class="ud-item" role="menuitem"><svg class="icon"><use href="#i-logout"></use></svg>Log out</button>
+            <button id="delete-account-btn" class="ud-item ud-danger" role="menuitem"><svg class="icon"><use href="#i-trash"></use></svg>Delete account</button>
           </div>
         </div>
       </div>
-      <h1 class="brand">🛡️ CyberSeal</h1>
-      <p class="subtitle">AI-Powered Threat Detection &amp; Tamper-Proof Documents</p>
-      <nav class="nav-tabs" role="tablist" aria-label="Main sections">
-        <button id="tab-threat" class="nav-tab active" role="tab" aria-selected="true" aria-controls="threat-section">🔍 Threat Detector</button>
-        <button id="tab-seal" class="nav-tab" role="tab" aria-selected="false" aria-controls="seal-section">🔏 KaagazSeal</button>
-      </nav>
     </div>
   </header>
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">On-device security toolkit</p>
+      <h1 class="hero-title">Spot scams. Seal documents. <span class="hero-accent">Catch forgeries.</span></h1>
+      <p class="hero-sub">Check links and messages for phishing, issue tamper-proof documents, and verify them in seconds, all inside your browser.</p>
+      <ul class="trust-badges">
+        <li><svg class="icon"><use href="#i-device"></use></svg>100% on-device</li>
+        <li><svg class="icon"><use href="#i-key"></use></svg>ECDSA P-256 signatures</li>
+        <li><svg class="icon"><use href="#i-shield-check"></use></svg>No account needed to verify</li>
+      </ul>
+    </div>
+  </section>
 
   <main class="main-content">
 
     <!-- ============ THREAT DETECTOR ============ -->
     <section id="threat-section" role="tabpanel" aria-labelledby="tab-threat">
       <div class="card">
-        <h2>Analyze URLs &amp; Messages</h2>
-        <p class="subtitle">Paste a URL or message below to detect phishing, fraud, and suspicious activity</p>
+        <div class="card-head">
+          <span class="icon-chip"><svg class="icon"><use href="#i-shield-alert"></use></svg></span>
+          <div>
+            <h2>Analyze a link or message</h2>
+            <p class="subtitle">Paste a suspicious URL, SMS, email or chat message. CyberSeal explains every warning sign it finds.</p>
+          </div>
+        </div>
 
         <div class="form-row">
-          <label class="field-label" for="threat-type">Input type</label>
-          <select id="threat-type">
-            <option value="url">🔗 URL</option>
-            <option value="message">💬 Message</option>
+          <span class="field-label" id="threat-type-label">What are you checking?</span>
+          <div class="segmented segmented-input" role="radiogroup" aria-labelledby="threat-type-label">
+            <button type="button" class="seg-btn active" role="radio" aria-checked="true" data-threat-type="url">
+              <svg class="icon"><use href="#i-link"></use></svg>URL
+            </button>
+            <button type="button" class="seg-btn" role="radio" aria-checked="false" data-threat-type="message">
+              <svg class="icon"><use href="#i-message"></use></svg>Message
+            </button>
+          </div>
+          <select id="threat-type" class="visually-hidden" tabindex="-1" aria-hidden="true">
+            <option value="url">URL</option>
+            <option value="message">Message</option>
           </select>
         </div>
 
         <div class="form-row">
           <label class="field-label" for="threat-input">Content to analyze</label>
-          <textarea id="threat-input" rows="4" placeholder="Paste a URL or message to analyze..." spellcheck="false"></textarea>
-          <p class="hint kbd-hint">Tip: press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to analyze</p>
+          <textarea id="threat-input" rows="4" placeholder="Paste a URL to analyze, e.g. https://example.com/login" spellcheck="false"></textarea>
         </div>
 
-        <button id="analyze-btn" class="btn-primary btn-block">🔍 Analyze Threat</button>
-
-        <div class="examples-container">
-          <span class="examples-label">Try examples:</span>
-          <button class="example-btn" data-type="url" data-value="http://192.168.1.1/paypal-login/verify.php">Suspicious URL</button>
-          <button class="example-btn" data-type="url" data-value="https://google.com">Safe URL</button>
-          <button class="example-btn" data-type="message" data-value="URGENT: Your bank account has been compromised! Click here immediately to verify your identity: http://secure-bank-verify.tk/login. You must act within 24 hours or your account will be permanently locked. Reply with your SSN and date of birth for verification.">Phishing Message</button>
-          <button class="example-btn" data-type="message" data-value="Hi! Your order #12345 has been shipped via FedEx. Track it at fedex.com. Thanks for shopping with us!">Safe Message</button>
+        <div class="action-bar">
+          <div class="examples-container">
+            <span class="examples-label">Try an example</span>
+            <button class="example-btn" data-type="url" data-value="http://192.168.1.1/paypal-login/verify.php">Suspicious URL</button>
+            <button class="example-btn" data-type="url" data-value="https://google.com">Safe URL</button>
+            <button class="example-btn" data-type="message" data-value="URGENT: Your bank account has been compromised! Click here immediately to verify your identity: http://secure-bank-verify.tk/login. You must act within 24 hours or your account will be permanently locked. Reply with your SSN and date of birth for verification.">Phishing SMS</button>
+            <button class="example-btn" data-type="message" data-value="Hi! Your order #12345 has been shipped via FedEx. Track it at fedex.com. Thanks for shopping with us!">Safe message</button>
+          </div>
+          <div class="action-main">
+            <span class="hint kbd-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+            <button id="analyze-btn" class="btn-primary btn-lg">
+              <svg class="icon"><use href="#i-search"></use></svg>Analyze
+            </button>
+          </div>
         </div>
       </div>
 
       <div id="threat-results" class="hidden" aria-live="polite">
-        <div class="card">
-          <div id="risk-meter">
-            <div class="risk-meter-top">
-              <div id="risk-level"></div>
-              <div id="risk-score-text"></div>
+        <div class="card result-card">
+          <div class="risk-summary">
+            <div class="score-ring" id="risk-score-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Risk score">
+              <svg viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+                <circle id="risk-score-fill" class="ring-fill" cx="60" cy="60" r="52"></circle>
+              </svg>
+              <div class="ring-label"><span id="risk-score-num">0</span><small>/ 100</small></div>
             </div>
-            <div id="risk-score-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-              <div id="risk-score-fill"></div>
-            </div>
-            <div class="risk-scale" aria-hidden="true">
-              <span>Safe</span><span>Low</span><span>Medium</span><span>High</span><span>Critical</span>
+            <div class="risk-copy">
+              <div id="risk-level" class="risk-pill"></div>
+              <p id="risk-headline" class="risk-headline"></p>
+              <p id="risk-score-text" class="risk-meta"></p>
             </div>
           </div>
-          <div id="risk-reasons" class="results-section">
-            <h3>⚠️ Threat Indicators</h3>
-            <ul id="reasons-list" class="result-list"></ul>
-          </div>
-          <div id="risk-recommendations" class="results-section">
-            <h3>🛡️ Safety Recommendations</h3>
-            <ul id="recommendations-list" class="result-list"></ul>
+
+          <div class="results-grid">
+            <div id="risk-reasons" class="results-section">
+              <h3><svg class="icon"><use href="#i-alert"></use></svg>What we found</h3>
+              <ul id="reasons-list" class="result-list"></ul>
+            </div>
+            <div id="risk-recommendations" class="results-section">
+              <h3><svg class="icon"><use href="#i-shield-check"></use></svg>What to do</h3>
+              <ul id="recommendations-list" class="result-list"></ul>
+            </div>
           </div>
         </div>
       </div>
@@ -103,26 +194,40 @@
 
     <!-- ============ KAAGAZSEAL ============ -->
     <section id="seal-section" class="hidden" role="tabpanel" aria-labelledby="tab-seal">
-      <div class="sub-tabs" role="tablist" aria-label="KaagazSeal mode">
-        <button id="seal-mode-btn" class="nav-tab active" role="tab" aria-selected="true" aria-controls="seal-panel">🔏 Seal Document</button>
-        <button id="verify-mode-btn" class="nav-tab" role="tab" aria-selected="false" aria-controls="verify-panel">✅ Verify Document</button>
+      <div class="sub-tabs segmented" role="tablist" aria-label="KaagazSeal mode">
+        <button id="seal-mode-btn" class="nav-tab active" role="tab" aria-selected="true" aria-controls="seal-panel">
+          <svg class="icon"><use href="#i-lock"></use></svg><span>Seal a document</span>
+        </button>
+        <button id="verify-mode-btn" class="nav-tab" role="tab" aria-selected="false" aria-controls="verify-panel">
+          <svg class="icon"><use href="#i-file-check"></use></svg><span>Verify a document</span>
+        </button>
       </div>
 
       <!-- Seal panel -->
       <div id="seal-panel" role="tabpanel">
         <div id="seal-locked" class="card seal-locked">
-          <div class="lock-icon" aria-hidden="true">🔐</div>
+          <span class="icon-chip icon-chip-lg"><svg class="icon"><use href="#i-key"></use></svg></span>
           <h2>Sign in to seal documents</h2>
-          <p class="subtitle">Sealing signs documents with a private key that belongs to your account, and your organization appears as the issuer. Anyone can <strong>verify</strong> documents without an account.</p>
+          <p class="subtitle">Sealing signs a document with a private key that belongs to your account, and your organization appears as the issuer. Anyone can <strong>verify</strong> a document without an account.</p>
           <div class="button-row button-row-center">
-            <button id="locked-login-btn" class="btn-primary">👤 Log in</button>
-            <button id="locked-signup-btn" class="btn-secondary">✨ Create account</button>
+            <button id="locked-login-btn" class="btn-primary"><svg class="icon"><use href="#i-user"></use></svg>Log in</button>
+            <button id="locked-signup-btn" class="btn-secondary"><svg class="icon"><use href="#i-user-plus"></use></svg>Create account</button>
           </div>
+          <ol class="steps">
+            <li><span>1</span>Enter or scan the document</li>
+            <li><span>2</span>CyberSeal signs it on your device</li>
+            <li><span>3</span>Print it with its verification QR</li>
+          </ol>
         </div>
 
         <div id="seal-form-card" class="card hidden">
-          <h2>Create a Sealed Document</h2>
-          <p class="subtitle">Your document is signed with your account's ECDSA P-256 key. The QR code carries the signed text, so any later edit can be detected.</p>
+          <div class="card-head">
+            <span class="icon-chip"><svg class="icon"><use href="#i-lock"></use></svg></span>
+            <div>
+              <h2>Create a sealed document</h2>
+              <p class="subtitle">The text is signed with your account's ECDSA P-256 key and packed into a QR code, so any later edit is detectable.</p>
+            </div>
+          </div>
 
           <div class="form-grid">
             <div class="form-row">
@@ -132,14 +237,18 @@
             </div>
             <div class="form-row">
               <label class="field-label" for="doc-title">Title</label>
-              <input id="doc-title" type="text" placeholder="Document Title (e.g., Rent Receipt)" maxlength="120">
+              <input id="doc-title" type="text" placeholder="e.g. Rent Receipt" maxlength="120">
             </div>
           </div>
 
           <div class="form-row">
-            <span class="field-label">Scan an existing document <span class="optional">(optional)</span></span>
+            <span class="field-label">Scan an existing document <span class="optional">optional</span></span>
             <label class="file-drop scan-drop" for="doc-scan-input">
-              <span id="doc-scan-label">📄 Upload a photo, image or PDF to fill in the text automatically</span>
+              <span class="file-drop-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
+              <span class="file-drop-text">
+                <strong id="doc-scan-label">Upload a photo, image or PDF</strong>
+                <small>The text is read on your device and filled in below for you to review</small>
+              </span>
               <input id="doc-scan-input" type="file" accept="image/*,application/pdf,.pdf">
             </label>
             <div id="doc-scan-status" class="ocr-status" aria-live="polite"></div>
@@ -151,23 +260,39 @@
             <p class="hint"><span id="doc-char-count">0</span> characters · long documents are trimmed to fit in one QR code</p>
           </div>
 
-          <div class="form-row">
-            <label class="field-label" for="doc-amount">Amount (₹)</label>
-            <input id="doc-amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Amount (₹) — optional">
+          <div class="form-row form-row-narrow">
+            <label class="field-label" for="doc-amount">Amount (₹) <span class="optional">optional</span></label>
+            <div class="input-prefix">
+              <span aria-hidden="true">₹</span>
+              <input id="doc-amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+            </div>
           </div>
 
-          <button id="seal-btn" class="btn-primary btn-block" disabled>🔏 Generate Sealed Document</button>
-          <div id="key-status" class="key-status" aria-live="polite">⏳ Preparing signing key…</div>
+          <div class="form-footer">
+            <div id="key-status" class="key-status" aria-live="polite"></div>
+            <button id="seal-btn" class="btn-primary btn-lg" disabled>
+              <svg class="icon"><use href="#i-lock"></use></svg>Seal document
+            </button>
+          </div>
         </div>
 
         <div id="sealed-output" class="hidden">
           <div class="card">
+            <div class="card-head card-head-row">
+              <span class="icon-chip icon-chip-success"><svg class="icon"><use href="#i-check-circle"></use></svg></span>
+              <div>
+                <h2>Your sealed document</h2>
+                <p class="subtitle">Print it, or share the QR code. Anyone can verify it with CyberSeal.</p>
+              </div>
+            </div>
             <div id="seal-warning" class="notice notice-warning hidden"></div>
-            <div id="sealed-doc"></div>
+            <div class="desk">
+              <div id="sealed-doc"></div>
+            </div>
             <div class="button-row">
-              <button id="print-btn" class="btn-secondary">🖨️ Print</button>
-              <button id="download-qr-btn" class="btn-secondary hidden">🖼️ Download QR Image</button>
-              <button id="download-btn" class="btn-secondary hidden">💾 Download Seal (.json)</button>
+              <button id="print-btn" class="btn-primary"><svg class="icon"><use href="#i-printer"></use></svg>Print</button>
+              <button id="download-qr-btn" class="btn-secondary hidden"><svg class="icon"><use href="#i-image"></use></svg>Download QR image</button>
+              <button id="download-btn" class="btn-secondary hidden"><svg class="icon"><use href="#i-braces"></use></svg>Download seal (.json)</button>
             </div>
           </div>
         </div>
@@ -176,23 +301,34 @@
       <!-- Verify panel -->
       <div id="verify-panel" class="hidden" role="tabpanel">
         <div class="card">
-          <h2>Verify a Sealed Document</h2>
-          <p class="subtitle">Scan the QR code on a sealed document to check that its signature is valid and see the original signed text.</p>
+          <div class="card-head">
+            <span class="icon-chip"><svg class="icon"><use href="#i-file-check"></use></svg></span>
+            <div>
+              <h2>Verify a sealed document</h2>
+              <p class="subtitle">Scan the QR code on the document to check its signature and see the original signed text. No account needed.</p>
+            </div>
+          </div>
 
           <div id="qr-reader"></div>
           <div id="qr-file-reader" class="visually-hidden" aria-hidden="true"></div>
 
-          <div class="button-row button-row-center">
-            <button id="scan-btn" class="btn-primary">📷 Start Camera Scan</button>
-            <label for="file-input" class="btn-secondary" tabindex="0" role="button">📁 Upload QR Image</label>
+          <div class="option-tiles">
+            <button id="scan-btn" class="option-tile">
+              <span class="option-icon"><svg class="icon"><use href="#i-camera"></use></svg></span>
+              <span class="option-text"><strong>Scan with camera</strong><small>Point your camera at the QR code</small></span>
+            </button>
+            <label for="file-input" class="option-tile" tabindex="0" role="button">
+              <span class="option-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
+              <span class="option-text"><strong>Upload QR image</strong><small>A photo or screenshot of the QR code</small></span>
+            </label>
             <input id="file-input" type="file" accept="image/*" hidden>
           </div>
           <div id="scan-status" class="scan-status" aria-live="polite"></div>
 
           <details class="manual-entry">
-            <summary>Or paste QR data manually</summary>
+            <summary><svg class="icon"><use href="#i-clipboard"></use></svg>Paste QR data instead</summary>
             <textarea id="manual-qr-input" rows="3" placeholder='Paste the QR contents or the downloaded .json seal, e.g. {"p":"…","s":"…","k":{…}}' spellcheck="false"></textarea>
-            <button id="manual-verify-btn" class="btn-secondary">✅ Verify Pasted Data</button>
+            <button id="manual-verify-btn" class="btn-secondary"><svg class="icon"><use href="#i-check"></use></svg>Verify pasted data</button>
           </details>
         </div>
 
@@ -206,15 +342,24 @@
 
         <div id="ocr-section" class="hidden">
           <div class="card">
-            <h3>📝 OCR Comparison</h3>
-            <p class="subtitle">Upload a photo of the printed document to check if printed text matches the signed original</p>
+            <div class="card-head">
+              <span class="icon-chip"><svg class="icon"><use href="#i-file-search"></use></svg></span>
+              <div>
+                <h3>Check the printed copy</h3>
+                <p class="subtitle">Upload a photo of the paper document. CyberSeal reads it and highlights any word that differs from what was signed.</p>
+              </div>
+            </div>
             <div class="form-row">
               <label class="file-drop" for="ocr-file-input">
-                <span id="ocr-file-label">📄 Choose a photo of the printed document</span>
+                <span class="file-drop-icon"><svg class="icon"><use href="#i-camera"></use></svg></span>
+                <span class="file-drop-text">
+                  <strong id="ocr-file-label">Choose a photo of the printed document</strong>
+                  <small>Flat, well-lit and straight-on works best</small>
+                </span>
                 <input id="ocr-file-input" type="file" accept="image/*">
               </label>
             </div>
-            <button id="ocr-btn" class="btn-primary btn-block" disabled>🔍 Run OCR Comparison</button>
+            <button id="ocr-btn" class="btn-primary btn-block" disabled><svg class="icon"><use href="#i-search"></use></svg>Compare with signed text</button>
             <div id="ocr-status" class="ocr-status" aria-live="polite"></div>
             <div id="ocr-diff-output"></div>
           </div>
@@ -224,8 +369,14 @@
   </main>
 
   <footer class="footer">
-    <p>Built with ❤️ | No data leaves your device | 100% client-side</p>
-    <p class="tech-badges">tesseract.js • Web Crypto • pako • jsdiff • Vercel</p>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="logo-mark logo-mark-sm"><svg class="icon"><use href="#i-shield-check"></use></svg></span>
+        <span>CyberSeal</span>
+      </div>
+      <p class="footer-claim">No data leaves your device · 100% client-side</p>
+      <p class="tech-badges">Web Crypto · tesseract.js · pdf.js · pako · jsdiff · Vercel</p>
+    </div>
   </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -233,9 +384,9 @@
   <!-- ============ DEMO MODE ============ -->
   <aside id="demo-panel" class="demo-panel hidden" aria-label="Guided demo" aria-live="polite">
     <div class="demo-top">
-      <span class="demo-badge">▶ DEMO</span>
+      <span class="demo-badge"><svg class="icon"><use href="#i-play"></use></svg>Demo</span>
       <span id="demo-step-count" class="demo-step-count"></span>
-      <button id="demo-exit" class="modal-close demo-exit" aria-label="Exit demo">✕</button>
+      <button id="demo-exit" class="icon-btn demo-exit" aria-label="Exit demo"><svg class="icon"><use href="#i-x"></use></svg></button>
     </div>
     <div class="demo-progress"><div id="demo-progress-fill" class="demo-progress-fill"></div></div>
     <h3 id="demo-title" class="demo-title"></h3>
@@ -243,18 +394,19 @@
     <p id="demo-result" class="demo-result"></p>
     <div class="demo-actions">
       <label class="checkbox-row demo-autoplay"><input id="demo-autoplay" type="checkbox"> Auto-play</label>
-      <button id="demo-next" class="btn-primary">Start ▶</button>
+      <button id="demo-next" class="btn-primary">Start</button>
     </div>
   </aside>
 
   <!-- ============ AUTH DIALOG ============ -->
   <dialog id="auth-dialog" class="modal" aria-labelledby="auth-title">
     <div class="modal-card">
-      <button id="auth-close" class="modal-close" aria-label="Close">✕</button>
+      <button id="auth-close" class="icon-btn modal-close" aria-label="Close"><svg class="icon"><use href="#i-x"></use></svg></button>
+      <span class="logo-mark modal-mark"><svg class="icon"><use href="#i-shield-check"></use></svg></span>
       <h2 id="auth-title">Welcome to CyberSeal</h2>
       <p class="subtitle">Your account lives only on this device. Nothing is sent to a server.</p>
 
-      <div class="sub-tabs auth-tabs" role="tablist">
+      <div class="segmented auth-tabs" role="tablist">
         <button id="auth-login-tab" class="nav-tab active" role="tab" aria-selected="true" aria-controls="login-form">Log in</button>
         <button id="auth-signup-tab" class="nav-tab" role="tab" aria-selected="false" aria-controls="signup-form">Sign up</button>
       </div>
@@ -268,12 +420,12 @@
           <label class="field-label" for="login-password">Password</label>
           <div class="password-wrap">
             <input id="login-password" type="password" autocomplete="current-password" required>
-            <button type="button" class="pw-toggle" data-target="login-password" aria-label="Show password">👁️</button>
+            <button type="button" class="pw-toggle" data-target="login-password" aria-label="Show password"><svg class="icon"><use href="#i-eye"></use></svg></button>
           </div>
         </div>
         <label class="checkbox-row"><input id="login-remember" type="checkbox"> Keep me signed in for 7 days</label>
         <div id="login-error" class="form-error" role="alert"></div>
-        <button type="submit" class="btn-primary btn-block">Log in</button>
+        <button type="submit" class="btn-primary btn-block btn-lg">Log in</button>
         <p class="auth-switch">New here? <button type="button" class="link-btn" data-auth-mode="signup">Create an account</button></p>
       </form>
 
@@ -285,7 +437,7 @@
           </div>
           <div class="form-row">
             <label class="field-label" for="signup-org">Organization</label>
-            <input id="signup-org" type="text" autocomplete="organization" maxlength="120" placeholder="Shown as issuer on sealed documents">
+            <input id="signup-org" type="text" autocomplete="organization" maxlength="120" placeholder="Shown as the issuer">
           </div>
         </div>
         <div class="form-row">
@@ -296,7 +448,7 @@
           <label class="field-label" for="signup-password">Password <span class="required">*</span></label>
           <div class="password-wrap">
             <input id="signup-password" type="password" autocomplete="new-password" required>
-            <button type="button" class="pw-toggle" data-target="signup-password" aria-label="Show password">👁️</button>
+            <button type="button" class="pw-toggle" data-target="signup-password" aria-label="Show password"><svg class="icon"><use href="#i-eye"></use></svg></button>
           </div>
           <div class="strength" aria-live="polite">
             <div class="strength-bar"><div id="strength-fill" class="strength-fill"></div></div>
@@ -308,18 +460,19 @@
           <input id="signup-confirm" type="password" autocomplete="new-password" required>
         </div>
         <div id="signup-error" class="form-error" role="alert"></div>
-        <button type="submit" class="btn-primary btn-block">Create account</button>
+        <button type="submit" class="btn-primary btn-block btn-lg">Create account</button>
         <p class="auth-switch">Already have an account? <button type="button" class="link-btn" data-auth-mode="login">Log in</button></p>
       </form>
 
-      <p class="auth-note">🔒 Passwords are hashed with PBKDF2-SHA256 (310,000 rounds) and never stored or sent anywhere. There's no password reset, so keep yours safe.</p>
+      <p class="auth-note"><svg class="icon"><use href="#i-lock"></use></svg><span>Passwords are hashed with PBKDF2-SHA256 (310,000 rounds) and never stored or sent anywhere. There's no password reset, so keep yours safe.</span></p>
     </div>
   </dialog>
 
   <!-- ============ DELETE ACCOUNT DIALOG ============ -->
   <dialog id="delete-dialog" class="modal" aria-labelledby="delete-title">
     <form id="delete-form" class="modal-card" novalidate>
-      <button type="button" id="delete-close" class="modal-close" aria-label="Close">✕</button>
+      <button type="button" id="delete-close" class="icon-btn modal-close" aria-label="Close"><svg class="icon"><use href="#i-x"></use></svg></button>
+      <span class="icon-chip icon-chip-danger modal-mark"><svg class="icon"><use href="#i-trash"></use></svg></span>
       <h2 id="delete-title">Delete account?</h2>
       <p class="subtitle">This permanently removes your account and its signing key from this device. Documents you already sealed still verify, but you can never seal with this key again.</p>
       <div class="form-row">
@@ -328,7 +481,7 @@
       </div>
       <div id="delete-error" class="form-error" role="alert"></div>
       <div class="button-row">
-        <button type="submit" class="btn-danger">🗑️ Delete permanently</button>
+        <button type="submit" class="btn-danger"><svg class="icon"><use href="#i-trash"></use></svg>Delete permanently</button>
         <button type="button" id="delete-cancel" class="btn-secondary">Cancel</button>
       </div>
     </form>

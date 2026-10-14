@@ -30,6 +30,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---------------------------------------------------------------- helpers
 
+  /** Markup for an icon from the inline SVG sprite in index.html. */
+  function icon(name, cls) {
+    return `<svg class="icon${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+  }
+
   function checkLibraries() {
     const missing = [];
     if (typeof pako === 'undefined') missing.push('pako (compression)');
@@ -39,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof Tesseract === 'undefined') missing.push('tesseract.js (OCR)');
     if (missing.length) {
       const banner = $('lib-warning');
-      banner.textContent = `⚠️ Some libraries failed to load: ${missing.join(', ')}. Threat detection still works; related KaagazSeal features need an internet connection. Reload to retry.`;
+      banner.textContent = `Some libraries failed to load: ${missing.join(', ')}. Threat detection still works; related KaagazSeal features need an internet connection. Reload to retry.`;
       banner.classList.remove('hidden');
     }
   }
@@ -80,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!button.dataset.label) button.dataset.label = button.innerHTML;
       button.disabled = true;
       button.classList.add('is-loading');
-      if (busyLabel) button.textContent = busyLabel;
+      if (busyLabel) button.innerHTML = `<span class="spinner" aria-hidden="true"></span>${escapeHtml(busyLabel)}`;
     } else {
       button.disabled = false;
       button.classList.remove('is-loading');
@@ -181,10 +186,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const threatInput = $('threat-input');
   const analyzeBtn = $('analyze-btn');
 
+  const typeButtons = document.querySelectorAll('[data-threat-type]');
+
   threatType.addEventListener('change', () => {
     threatInput.placeholder = threatType.value === 'url'
       ? 'Paste a URL to analyze, e.g. https://example.com/login'
       : 'Paste a suspicious SMS, email or chat message...';
+    typeButtons.forEach((btn) => {
+      const active = btn.dataset.threatType === threatType.value;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-checked', String(active));
+    });
+  });
+
+  // The visible URL / Message switch drives the (hidden) select the rest of the code reads.
+  typeButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (threatType.value === btn.dataset.threatType) return;
+      threatType.value = btn.dataset.threatType;
+      threatType.dispatchEvent(new Event('change'));
+      threatInput.focus();
+    });
   });
 
   document.querySelectorAll('.example-btn').forEach((btn) => {
@@ -239,26 +261,53 @@ document.addEventListener('DOMContentLoaded', () => {
     renderThreatResult(result);
   }
 
+  const RISK_HEADLINES = {
+    'risk-safe': 'No significant threats found',
+    'risk-low': 'A few minor warning signs',
+    'risk-medium': 'Proceed with caution',
+    'risk-high': 'This looks like a scam',
+    'risk-critical': 'Dangerous. Do not interact.'
+  };
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 52;
+  let scoreCountTimer = null;
+  let lastThreatResult = null;
+
   function renderThreatResult(result) {
+    lastThreatResult = result;
     const levelEl = $('risk-level');
     const fill = $('risk-score-fill');
-    const bar = $('risk-score-bar');
+    const ring = $('risk-score-bar');
+    const numEl = $('risk-score-num');
 
-    levelEl.className = '';
-    levelEl.classList.add(result.levelClass);
+    levelEl.className = 'risk-pill ' + result.levelClass;
     levelEl.textContent = result.level;
-    $('risk-score-text').textContent = `Risk score: ${result.score} / 100`;
-    bar.setAttribute('aria-valuenow', String(result.score));
+    $('risk-headline').textContent = RISK_HEADLINES[result.levelClass] || '';
+    const warnings = result.reasons.length;
+    const positives = (result.positives || []).length;
+    $('risk-score-text').textContent = warnings
+      ? `${warnings} warning sign${warnings === 1 ? '' : 's'} found${positives ? ` · ${positives} reassuring sign${positives === 1 ? '' : 's'}` : ''}`
+      : 'No warning signs found';
+    ring.setAttribute('aria-valuenow', String(result.score));
 
-    // Animate from zero each time.
+    // Animate the ring and the number from zero each time.
     fill.style.transition = 'none';
-    fill.style.width = '0%';
-    fill.className = 'fill-' + result.levelClass.replace('risk-', '');
-    void fill.offsetWidth;
+    fill.style.strokeDashoffset = String(RING_CIRCUMFERENCE);
+    fill.setAttribute('class', 'ring-fill fill-' + result.levelClass.replace('risk-', ''));
+    void fill.getBoundingClientRect();
     fill.style.transition = '';
     requestAnimationFrame(() => {
-      fill.style.width = Math.max(result.score, 2) + '%';
+      fill.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - Math.max(result.score, 1) / 100));
     });
+
+    clearInterval(scoreCountTimer);
+    const start = performance.now();
+    const duration = 900;
+    numEl.textContent = '0';
+    scoreCountTimer = setInterval(() => {
+      const t = Math.min(1, (performance.now() - start) / duration);
+      numEl.textContent = String(Math.round(result.score * (1 - Math.pow(1 - t, 3))));
+      if (t >= 1) clearInterval(scoreCountTimer);
+    }, 16);
 
     const reasons = $('reasons-list');
     reasons.innerHTML = '';
@@ -303,20 +352,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const signer = activeSignerName();
     const who = signer ? `Signing as <strong>${escapeHtml(signer)}</strong> · ` : '';
     keyStatus.className = 'key-status ready';
-    keyStatus.innerHTML = `✅ ${who}Key fingerprint <span class="fingerprint">${escapeHtml(seal.fingerprint)}</span>`
-      + (seal.keyPersisted ? '' : ' · <span title="This browser blocked key storage, so a new key is created each visit.">session-only key</span>');
+    keyStatus.innerHTML = `${icon('shield-check')}<span>${who}Key <span class="fingerprint">${escapeHtml(seal.fingerprint)}</span></span>`
+      + (seal.keyPersisted ? '' : '<span title="This browser blocked key storage, so a new key is created each visit.">· session-only key</span>');
     sealBtn.disabled = false;
   }
 
   function showKeyError(message) {
     keyStatus.className = 'key-status error';
-    keyStatus.textContent = '❌ ' + (message || 'Could not create a signing key.');
+    keyStatus.innerHTML = `${icon('x-circle')}<span>${escapeHtml(message || 'Could not create a signing key.')}</span>`;
     sealBtn.disabled = true;
   }
 
   function showKeyLoading() {
     keyStatus.className = 'key-status';
-    keyStatus.textContent = '⏳ Preparing your signing key…';
+    keyStatus.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Preparing your signing key…</span>';
     sealBtn.disabled = true;
   }
 
@@ -405,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
       input.type = show ? 'text' : 'password';
       btn.setAttribute('aria-pressed', String(show));
       btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-      btn.textContent = show ? '🙈' : '👁️';
+      btn.innerHTML = icon(show ? 'eye-off' : 'eye');
     });
   });
 
@@ -432,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = e.currentTarget;
     const submit = form.querySelector('button[type="submit"]');
     clearFormErrors(form);
-    setBusy(submit, true, '⏳ Checking…');
+    setBusy(submit, true, 'Checking…');
     try {
       const user = await auth.logIn($('login-username').value, $('login-password').value, $('login-remember').checked);
       form.reset();
@@ -451,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = e.currentTarget;
     const submit = form.querySelector('button[type="submit"]');
     clearFormErrors(form);
-    setBusy(submit, true, '⏳ Creating account…');
+    setBusy(submit, true, 'Creating account…');
     try {
       const user = await auth.signUp({
         name: $('signup-name').value,
@@ -524,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = e.currentTarget;
     const submit = form.querySelector('button[type="submit"]');
     clearFormErrors(form);
-    setBusy(submit, true, '⏳ Deleting…');
+    setBusy(submit, true, 'Deleting…');
     try {
       const deletedId = await auth.deleteAccount($('delete-password').value);
       await seal.deleteIdentityKey(deletedId);
@@ -735,7 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await demoSleep(250, runId);
         demoFocus($('threat-results'));
         await demoSleep(900, runId);
-        return `Scored ${$('risk-score-text').textContent.replace('Risk score: ', '')}: ${$('risk-level').textContent}. Every red flag is listed with a reason, plus what to do next.`;
+        return `Scored ${lastThreatResult.score}/100: ${lastThreatResult.level}. Every red flag is listed with a reason, plus what to do next.`;
       }
     },
     {
@@ -751,7 +800,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await demoSleep(250, runId);
         demoFocus($('threat-results'));
         await demoSleep(900, runId);
-        return `Scored ${$('risk-score-text').textContent.replace('Risk score: ', '')}: ${$('risk-level').textContent}. No false alarm.`;
+        return `Scored ${lastThreatResult.score}/100: ${lastThreatResult.level}. No false alarm.`;
       }
     },
     {
@@ -784,10 +833,10 @@ document.addEventListener('DOMContentLoaded', () => {
         demoCheck(runId);
         await demoTab($('verify-mode-btn'), runId);
         demoFocus($('verify-panel').querySelector('.card'));
-        setScanStatus('📷 Scanning the QR code on the document…');
+        setScanStatus('Scanning the QR code on the document…');
         const decoded = await seal.scanFile(new File([blob], 'receipt-qr.png', { type: 'image/png' }));
         demoCheck(runId);
-        setScanStatus('✅ QR code read from image');
+        setScanStatus('QR code read from image');
         await handleQRResult(decoded);
         demoCheck(runId);
         demoFocus($('verify-results'));
@@ -805,7 +854,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const forged = await demoForgedPrintout(p.i, p.d, p.t.replace('15000', '75000'));
         demoCheck(runId);
         ocrFile = forged;
-        $('ocr-file-label').textContent = `📄 ${forged.name}`;
+        $('ocr-file-label').textContent = forged.name;
         ocrInput.closest('.file-drop').classList.add('has-file');
         ocrBtn.disabled = false;
         demoFocus($('ocr-section'));
@@ -867,10 +916,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const next = $('demo-next');
     if (state === 'running') {
       next.disabled = true;
-      next.textContent = '⏳ Running…';
+      next.innerHTML = '<span class="spinner" aria-hidden="true"></span>Running…';
     } else {
       next.disabled = false;
-      next.textContent = demo.step === 0 ? 'Start ▶' : demo.step === last ? 'Finish ✓' : (state === 'error' ? 'Skip ▶' : 'Next ▶');
+      next.innerHTML = demo.step === 0
+        ? `Start tour${icon('arrow-right')}`
+        : demo.step === last
+          ? `Finish${icon('check')}`
+          : `${state === 'error' ? 'Skip' : 'Next'}${icon('arrow-right')}`;
     }
   }
 
@@ -890,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await step.run(runId);
       demoCheck(runId);
       demo.running = false;
-      renderDemo('done', '✓ ' + result);
+      renderDemo('done', result);
       if ($('demo-autoplay').checked && index < DEMO_STEPS.length - 1) {
         await demoSleep(3000, runId);
         runDemoStep(index + 1);
@@ -899,7 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (err instanceof DemoCancelled) return;
       console.error('[Demo] step failed:', err);
       demo.running = false;
-      renderDemo('error', `⚠️ ${err && err.message ? err.message : 'This step failed.'} You can skip ahead.`);
+      renderDemo('error', `${err && err.message ? err.message : 'This step failed.'} You can skip ahead.`);
     }
   }
 
@@ -982,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function resetDocScan() {
     docScanToken++;
     $('doc-scan-input').value = '';
-    $('doc-scan-label').textContent = '📄 Upload a photo, image or PDF to fill in the text automatically';
+    $('doc-scan-label').textContent = 'Upload a photo, image or PDF';
     $('doc-scan-input').closest('.file-drop').classList.remove('has-file');
     $('doc-scan-status').innerHTML = '';
     $('doc-scan-status').className = 'ocr-status';
@@ -1147,7 +1200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const token = ++docScanToken;
-    $('doc-scan-label').textContent = `📄 ${file.name}`;
+    $('doc-scan-label').textContent = file.name;
     input.closest('.file-drop').classList.add('has-file');
     sealBtn.disabled = true;
 
@@ -1200,7 +1253,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const more = isPdf && result.totalPages > result.pages ? ` · only the first ${result.pages} of ${result.totalPages} pages were read` : '';
       const autofill = filled.length ? ` · filled in ${filled.join(' and ')}` : '';
       setDocScanStatus(
-        `✅ Read ${text.length.toLocaleString()} characters from the ${escapeHtml(source)}${confidence}${more}${autofill}.<br>`
+        `${icon('check-circle')}Read ${text.length.toLocaleString()} characters from the ${escapeHtml(source)}${confidence}${more}${autofill}.<br>`
           + '<strong>Review and correct the text below before sealing.</strong> Whatever is in the box is exactly what gets signed.',
         'success'
       );
@@ -1243,7 +1296,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    setBusy(sealBtn, true, '⏳ Sealing…');
+    setBusy(sealBtn, true, 'Sealing…');
     try {
       const result = await seal.sealDocument(text, issuer, title, amountRaw);
       lastSealedData = result;
@@ -1271,7 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="sd-footer">
           <div class="sd-qr"><canvas id="sealed-qr-canvas" aria-label="KaagazSeal verification QR code"></canvas></div>
           <div class="sd-seal-info">
-            <strong>🔏 Digitally sealed with KaagazSeal</strong>
+            <strong><svg class="sd-seal-mark" viewBox="0 0 24 24" fill="none" stroke="#1F1A16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>Digitally sealed with KaagazSeal</strong>
             This document carries an ECDSA P-256 digital signature. Scan the QR code with CyberSeal → Verify to confirm the text has not been altered.<br>
             Signing key fingerprint: <b class="sd-fp">${escapeHtml(fingerprint)}</b>
           </div>
@@ -1293,7 +1346,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const warning = $('seal-warning');
     if (result.warning) {
-      warning.textContent = '⚠️ ' + result.warning;
+      warning.innerHTML = `${icon('alert')}<span>${escapeHtml(result.warning)}</span>`;
       warning.classList.remove('hidden');
     } else {
       warning.classList.add('hidden');
@@ -1322,7 +1375,8 @@ document.addEventListener('DOMContentLoaded', () => {
     .sd-footer { display: flex; align-items: center; gap: 1.5rem; padding-top: 1.25rem; border-top: 1px dashed #8C8178; page-break-inside: avoid; }
     .sd-qr img { width: 62mm; height: 62mm; image-rendering: pixelated; }
     .sd-seal-info { font-size: 0.82rem; color: #4A423B; line-height: 1.55; font-family: 'Segoe UI', system-ui, sans-serif; }
-    .sd-seal-info strong { display: block; font-size: 0.95rem; color: #1F1A16; margin-bottom: 0.25rem; }
+    .sd-seal-info strong { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; color: #1F1A16; margin-bottom: 0.25rem; }
+    .sd-seal-mark { width: 18px; height: 18px; }
     .sd-fp { font-family: ui-monospace, Consolas, monospace; font-size: 0.92em; }
   `;
 
@@ -1408,7 +1462,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateScanButton() {
-    scanBtn.textContent = isScanning ? '⏹️ Stop Camera' : '📷 Start Camera Scan';
+    scanBtn.classList.toggle('is-active', isScanning);
+    scanBtn.innerHTML = isScanning
+      ? `<span class="option-icon">${icon('stop')}</span><span class="option-text"><strong>Stop camera</strong><small>Scanning… hold the QR code steady</small></span>`
+      : `<span class="option-icon">${icon('camera')}</span><span class="option-text"><strong>Scan with camera</strong><small>Point your camera at the QR code</small></span>`;
   }
 
   scanBtn.addEventListener('click', async () => {
@@ -1424,7 +1481,7 @@ document.addEventListener('DOMContentLoaded', () => {
       (decodedText) => {
         isScanning = false;
         updateScanButton();
-        setScanStatus('✅ QR code captured');
+        setScanStatus('QR code captured');
         handleQRResult(decodedText);
       },
       (message) => setScanStatus(message, true)
@@ -1442,7 +1499,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setScanStatus('Reading QR code from image…');
     try {
       const decoded = await seal.scanFile(file);
-      setScanStatus('✅ QR code read from image');
+      setScanStatus('QR code read from image');
       await handleQRResult(decoded);
     } catch (err) {
       setScanStatus(err && err.message ? err.message : 'Could not read a QR code from this image.', true);
@@ -1493,20 +1550,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (result.valid) {
       state = {
         cls: 'verified',
-        icon: '✅',
+        icon: 'check-circle',
         title: 'VERIFIED',
         desc: 'The signature is valid. The content below is exactly what was sealed.'
           + (result.signedByThisDevice ? ' It was sealed with your account\'s key.' : '')
       };
     } else if (result.error === 'TAMPERED') {
-      state = { cls: 'tampered', icon: '⚠️', title: 'TAMPERED', desc: result.message };
+      state = { cls: 'tampered', icon: 'alert', title: 'TAMPERED', desc: result.message };
     } else {
-      state = { cls: 'fake', icon: '❌', title: 'FAKE / INVALID SEAL', desc: result.message || 'Invalid or corrupted QR code' };
+      state = { cls: 'fake', icon: 'x-circle', title: 'FAKE / INVALID SEAL', desc: result.message || 'Invalid or corrupted QR code' };
     }
 
     statusEl.innerHTML = `
       <div class="verify-status ${state.cls}">
-        <div class="vs-icon" aria-hidden="true">${state.icon}</div>
+        <div class="vs-icon" aria-hidden="true">${icon(state.icon)}</div>
         <div>
           <div class="vs-title">${state.title}</div>
           <div class="vs-desc">${escapeHtml(state.desc)}</div>
@@ -1524,13 +1581,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ${amount ? `<tr><th>Amount</th><td>${escapeHtml(amount)}</td></tr>` : ''}
             <tr><th>Sealed on</th><td>${escapeHtml(formatDate(p.timestamp))}</td></tr>
             <tr><th>Key fingerprint</th><td><span class="fingerprint">${escapeHtml(result.fingerprint || 'Unknown')}</span></td></tr>
-            <tr><th>Signature</th><td>${result.valid ? '✅ Valid (ECDSA P-256 / SHA-256)' : '❌ Does not match content'}</td></tr>
+            <tr><th>Signature</th><td>${result.valid
+              ? `<span class="sig-valid">${icon('check-circle')}Valid</span> · ECDSA P-256 / SHA-256`
+              : `<span class="sig-invalid">${icon('x-circle')}Does not match the content</span>`}</td></tr>
           </tbody>
         </table>
-        ${result.valid ? `<p class="hint" style="margin:-0.5rem 0 1.25rem">The signature proves the text hasn't changed since sealing. To confirm <em>who</em> sealed it, check that this fingerprint matches the one the issuer publishes.</p>` : ''}`;
+        ${result.valid ? `<p class="trust-note">${icon('info')}<span>The signature proves the text hasn't changed since sealing. To confirm <em>who</em> sealed it, check that this fingerprint matches the one the issuer publishes.</span></p>` : ''}`;
 
       textEl.innerHTML = `
-        <div class="original-text-label">${result.valid ? '📜 Signed original text' : '⚠️ Text claimed by the QR (not trustworthy)'}</div>
+        <div class="original-text-label">${result.valid ? `${icon('file-text')}Signed original text` : `${icon('alert')}Text claimed by the QR (not trustworthy)`}</div>
         <div class="original-text">${escapeHtml(p.text)}</div>`;
     } else {
       detailsEl.innerHTML = '';
@@ -1556,7 +1615,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ocrFile = null;
     ocrInput.value = '';
     ocrBtn.disabled = true;
-    $('ocr-file-label').textContent = '📄 Choose a photo of the printed document';
+    $('ocr-file-label').textContent = 'Choose a photo of the printed document';
     ocrInput.closest('.file-drop').classList.remove('has-file');
     $('ocr-status').innerHTML = '';
     $('ocr-status').classList.remove('error');
@@ -1572,7 +1631,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     ocrFile = file;
-    $('ocr-file-label').textContent = `📄 ${file.name}`;
+    $('ocr-file-label').textContent = file.name;
     ocrInput.closest('.file-drop').classList.add('has-file');
     ocrBtn.disabled = false;
   });
@@ -1599,7 +1658,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    setBusy(ocrBtn, true, '⏳ Reading document…');
+    setBusy(ocrBtn, true, 'Reading document…');
     $('ocr-diff-output').innerHTML = '';
     setOcrProgress('Loading OCR engine (the first run downloads the English language model)', 0);
 
@@ -1625,8 +1684,8 @@ document.addEventListener('DOMContentLoaded', () => {
       $('ocr-status').textContent = `OCR complete · confidence ${Math.round(data.confidence || 0)}%`;
 
       const summary = diff.changed
-        ? `<div class="diff-summary mismatch">❌ ${diff.changeCount} difference${diff.changeCount === 1 ? '' : 's'} between the printed text and the signed original. Hover or tap highlighted words to see what was signed.</div>`
-        : '<div class="diff-summary match">✅ The printed text matches the signed original.</div>';
+        ? `<div class="diff-summary mismatch">${icon('x-circle')}<span>${diff.changeCount} difference${diff.changeCount === 1 ? '' : 's'} between the printed text and the signed original. Hover or tap highlighted words to see what was signed.</span></div>`
+        : `<div class="diff-summary match">${icon('check-circle')}<span>The printed text matches the signed original.</span></div>`;
 
       $('ocr-diff-output').innerHTML = `
         ${summary}
